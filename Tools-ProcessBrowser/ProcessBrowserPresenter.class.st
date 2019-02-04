@@ -181,7 +181,11 @@ ProcessBrowserPresenter >> initializePresenter [
 	].
 	
 	currentSelectedProcessPresenter whenSelectionIndexChanged: [ :i |
-		(i>0) ifTrue: [ methodPanePresenter text: (stackList at:i) sourceCode]]
+		(i>0) ifTrue: [ 
+			methodPanePresenter 
+				text: (stackList at:i) sourceCode; 
+				behavior: Class.
+			]]
 ]
 
 { #category : #initialization }
