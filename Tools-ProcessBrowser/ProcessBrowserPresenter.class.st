@@ -10,8 +10,7 @@ Class {
 		'methodPanePresenter',
 		'processList',
 		'autoUpdateProcess',
-		'stackList',
-		'textModel'
+		'stackList'
 	],
 	#classVars : [
 		'SuspendedProcesses',
@@ -169,11 +168,20 @@ ProcessBrowserPresenter >> initialize [
 ProcessBrowserPresenter >> initializePresenter [
 	|suspendedContext|
 	processListPresenter whenSelectionIndexChanged: [ :i |
-		suspendedContext := (processList at: i) suspendedContext. 
-		suspendedContext
-			ifNil: [self changeStackListTo: nil]
-			ifNotNil: [self changeStackListTo: (suspendedContext stackOfSize: 20)].
-		currentSelectedProcessPresenter items: self stackNameList.]
+		(i>0) 
+			ifTrue: [
+				suspendedContext := (processList at: i) suspendedContext.
+				suspendedContext
+					ifNil: [self changeStackListTo: nil]
+					ifNotNil: [self changeStackListTo: (suspendedContext stackOfSize: 20)].
+				methodPanePresenter text: ''.
+				currentSelectedProcessPresenter items: self stackNameList.
+				currentSelectedProcessPresenter resetSelection.			
+			]
+	].
+	
+	currentSelectedProcessPresenter whenSelectionIndexChanged: [ :i |
+		(i>0) ifTrue: [ methodPanePresenter text: (stackList at:i) sourceCode]]
 ]
 
 { #category : #initialization }
@@ -193,7 +201,15 @@ ProcessBrowserPresenter >> initializeWidgets [
 	processListPresenter := self newList.
 	currentSelectedProcessPresenter  := self newList.
 	methodPanePresenter := self newText.
-	processListPresenter items: self processNameList
+	methodPanePresenter
+		aboutToStyle: true;
+		isCodeCompletionAllowed: true.	
+	processListPresenter items: self processNameList.
+	
+	self focusOrder 
+		add: processListPresenter;
+		add: currentSelectedProcessPresenter;
+		add: methodPanePresenter.
 ]
 
 { #category : #accessing }
