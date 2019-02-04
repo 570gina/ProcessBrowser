@@ -9,7 +9,9 @@ Class {
 		'currentSelectedProcessPresenter',
 		'methodPanePresenter',
 		'processList',
-		'autoUpdateProcess'
+		'autoUpdateProcess',
+		'stackList',
+		'textModel'
 	],
 	#classVars : [
 		'SuspendedProcesses',
@@ -138,6 +140,13 @@ ProcessBrowserPresenter class >> unregisterWellKnownProcess: aProcess [
 	WellKnownProcesses detect: [ :e | e key value == aProcess ] ifFound: [ :entry | WellKnownProcesses remove: entry ]
 ]
 
+{ #category : #building }
+ProcessBrowserPresenter >> changeStackListTo: aCollection [ 
+
+        stackList := aCollection.
+        self changed: #stackNameList.
+]
+
 { #category : #accessing }
 ProcessBrowserPresenter >> currentSelectedProcessPresenter [
 	^ currentSelectedProcessPresenter
@@ -157,9 +166,14 @@ ProcessBrowserPresenter >> initialize [
 ]
 
 { #category : #initialization }
-ProcessBrowserPresenter >> initializePresenters [
-	
-	processListPresenter items: self processNameList
+ProcessBrowserPresenter >> initializePresenter [
+	|suspendedContext|
+	processListPresenter whenSelectionIndexChanged: [ :i |
+		suspendedContext := (processList at: i) suspendedContext. 
+		suspendedContext
+			ifNil: [self changeStackListTo: nil]
+			ifNotNil: [self changeStackListTo: (suspendedContext stackOfSize: 20)].
+		currentSelectedProcessPresenter items: self stackNameList.]
 ]
 
 { #category : #initialization }
@@ -179,7 +193,6 @@ ProcessBrowserPresenter >> initializeWidgets [
 	processListPresenter := self newList.
 	currentSelectedProcessPresenter  := self newList.
 	methodPanePresenter := self newText.
-	self halt.
 	processListPresenter items: self processNameList
 ]
 
@@ -232,6 +245,13 @@ ProcessBrowserPresenter >> processNameList [
 				ifNotNil: [ (((tally occurrencesOf: each) * 100.0 / tally size roundTo: 1) asString padLeftTo: 2) , '% ' ]
 				ifNil: [ '' ].
 			percent , (self prettyNameForProcess: each) ]
+]
+
+{ #category : #building }
+ProcessBrowserPresenter >> stackNameList [
+	^ stackList
+		ifNil: [#()]
+		ifNotNil: [stackList collect: [:each | each asString]]
 ]
 
 { #category : #api }
