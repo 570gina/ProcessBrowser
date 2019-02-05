@@ -19,6 +19,14 @@ Class {
 	#category : #'Tools-ProcessBrowser'
 }
 
+{ #category : #'from legacy' }
+ProcessBrowserPresenter class >> cleanUp [
+ "Remove terminated processes from my suspended list"
+
+       self suspendedProcesses keysDo: [:ea |
+               ea isTerminated ifTrue: [self suspendedProcesses removeKey: ea]]
+]
+
 { #category : #specs }
 ProcessBrowserPresenter class >> defaultSpec [
 	
@@ -51,7 +59,7 @@ ProcessBrowserPresenter class >> nameAndRulesFor: aProcess [
 ]
 
 { #category : #building }
-ProcessBrowserPresenter class >> openNewOne [
+ProcessBrowserPresenter class >> open [
 	<script>
 
 	ProcessBrowserPresenter new openWithSpec 
