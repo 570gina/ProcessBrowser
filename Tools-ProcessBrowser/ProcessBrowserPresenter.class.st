@@ -156,6 +156,11 @@ ProcessBrowserPresenter >> currentSelectedProcessPresenter: anObject [
 	currentSelectedProcessPresenter := anObject
 ]
 
+{ #category : #api }
+ProcessBrowserPresenter >> extent [
+	^1000@600
+]
+
 { #category : #initialization }
 ProcessBrowserPresenter >> initialize [
 	self initializeProcessList.
@@ -183,7 +188,7 @@ ProcessBrowserPresenter >> initializePresenter [
 	currentSelectedProcessPresenter whenSelectionIndexChanged: [ :i |
 		(i>0) ifTrue: [ 
 			methodPanePresenter 
-				text: (stackList at:i) sourceCode; 
+				text: (stackList at:i) sourceCode;
 				behavior: Class.
 			]]
 ]
