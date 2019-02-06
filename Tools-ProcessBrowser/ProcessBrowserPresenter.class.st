@@ -11,7 +11,9 @@ Class {
 		'processList',
 		'autoUpdateProcess',
 		'stackList',
-		'selectedProcess'
+		'selectedProcess',
+		'selectedContext',
+		'keyEventsDict'
 	],
 	#classVars : [
 		'SuspendedProcesses',
@@ -44,6 +46,107 @@ ProcessBrowserPresenter class >> initialize [
 	"ProcessBrowserPresenter initialize"
 	SuspendedProcesses ifNil: [ SuspendedProcesses := IdentityDictionary new ].
 	self registerWellKnownProcesses
+]
+
+{ #category : #menu }
+ProcessBrowserPresenter class >> menuProcessList: aBuilder [
+	<contextMenu>
+	<processBrowserProcessListMenu>
+	| target selectedProcess |
+	target := aBuilder model.
+	selectedProcess := target selectedProcess.
+	selectedProcess
+		ifNotNil: [ | nameAndRules |
+			nameAndRules := target nameAndRulesForSelectedProcess.
+			(aBuilder item: #Inspect)
+				keyText: 'i';
+				selector: #inspectProcess.
+			(aBuilder item: #Explore)
+				keyText: 'I';
+				selector: #exploreProcess.
+			(aBuilder item: #'Inspect Pointers')
+				keyText: 'P';
+				selector: #inspectPointers.
+			(Smalltalk globals includesKey: #PointerExplorer)
+				ifTrue: [ (aBuilder item: #'Explore pointers')
+						keyText: 'e';
+						selector: #explorePointers ].
+			nameAndRules second
+				ifTrue: [ (aBuilder item: #Terminate)
+						keyText: 't';
+						selector: #terminateProcess.
+					selectedProcess isSuspended
+						ifTrue: [ (aBuilder item: #Resume)
+								keyText: 'r';
+								selector: #resumeProcess ]
+						ifFalse: [ (aBuilder item: #Suspend)
+								keyText: 's';
+								selector: #suspendProcess ] ].
+			nameAndRules third
+				ifTrue: [ (aBuilder item: #'Change priority')
+						keyText: 'p';
+						selector: #changePriority.
+					(aBuilder item: #Debug)
+						keyText: 'd';
+						selector: #debugProcess ].
+			(aBuilder item: #'Profile messages')
+				keyText: 'm';
+				selector: #messageTally.
+			(selectedProcess suspendingList isKindOf: Semaphore)
+				ifTrue: [ (aBuilder item: #'Signal Semaphore')
+						keyText: 'S';
+						selector: #signalSemaphore ].
+			(aBuilder item: #'Full stack')
+				keyText: 'k';
+				selector: #moreStack;
+				withSeparatorAfter ].
+	(aBuilder item: #'Find context...')
+		keyText: 'f';
+		selector: #findContext.
+	(aBuilder item: #'Find again')
+		keyText: 'g';
+		selector: #nextContext;
+		withSeparatorAfter.
+	(aBuilder
+		item:
+		(target isAutoUpdating
+		ifTrue: [ #'Turn off auto-update' ]
+		ifFalse: [ #'Turn on auto-update' ]))
+		keyText: 'a';
+		selector: #toggleAutoUpdate.
+	(aBuilder item: #'Update list')
+		keyText: 'u';
+		selector: #updateProcessList.
+	Smalltalk globals
+		at: #CPUWatcher
+		ifPresent: [ :pw | 
+			aBuilder withSeparatorAfter.
+			pw isMonitoring
+				ifTrue: [ (aBuilder item: #'Stop CPUWatcher') selector: #stopCPUWatcher ]
+				ifFalse: [ (aBuilder item: #'Start CPUWatcher') selector: #startCPUWatcher ] ]
+]
+
+{ #category : #menu }
+ProcessBrowserPresenter class >> menuStackList: aBuilder [
+	<contextMenu>
+	<processBrowserStackListMenu>
+	(aBuilder item: #'Inspect context')
+		keyText: 'c';
+		selector: #inspectContext.
+	(aBuilder item: #'Explore context')
+		keyText: 'C';
+		selector: #exploreContext;
+		withSeparatorAfter.
+	(aBuilder item: #'Inspect receiver')
+		keyText: 'i';
+		selector: #inspectReceiver.
+	(aBuilder item: #'Explore receiver')
+		keyText: 'I';
+		selector: #exploreReceiver;
+		withSeparatorAfter.
+	(aBuilder item: #Browse)
+		keyText: 'b';
+		selector: #browseContext
 ]
 
 { #category : #'from legacy' }
@@ -148,6 +251,12 @@ ProcessBrowserPresenter class >> unregisterWellKnownProcess: aProcess [
 	WellKnownProcesses detect: [ :e | e key value == aProcess ] ifFound: [ :entry | WellKnownProcesses remove: entry ]
 ]
 
+{ #category : #'stack list' }
+ProcessBrowserPresenter >> browseContext [
+	selectedContext ifNil: [ ^ self ]. 
+	Smalltalk tools browser openOnClass: self selectedClass selector: self selectedSelector
+]
+
 { #category : #building }
 ProcessBrowserPresenter >> changeStackListTo: aCollection [ 
 
@@ -166,6 +275,11 @@ ProcessBrowserPresenter >> currentSelectedProcessPresenter: anObject [
 ]
 
 { #category : #inspecting }
+ProcessBrowserPresenter >> exploreContext [
+	selectedContext inspect
+]
+
+{ #category : #inspecting }
 ProcessBrowserPresenter >> explorePointers [
 	| saved |
 	selectedProcess ifNil: [ ^ self ].
@@ -180,6 +294,11 @@ ProcessBrowserPresenter >> explorePointers [
 { #category : #inspecting }
 ProcessBrowserPresenter >> exploreProcess [
 	selectedProcess inspect
+]
+
+{ #category : #inspecting }
+ProcessBrowserPresenter >> exploreReceiver [
+	selectedContext ifNotNil: [ selectedContext receiver inspect ]
 ]
 
 { #category : #api }
@@ -207,13 +326,15 @@ ProcessBrowserPresenter >> initializePresenter [
 						ifNil: [ self changeStackListTo: nil ]
 						ifNotNil: [ self changeStackListTo: (suspendedContext stackOfSize: 20) ].
 					methodPanePresenter text: ''.
-					currentSelectedProcessPresenter items: self stackList; displayBlock: #asString.
+					currentSelectedProcessPresenter
+						items: self stackList;
+						displayBlock: #asString.
 					currentSelectedProcessPresenter resetSelection ] ].
-			
 	currentSelectedProcessPresenter
 		whenSelectedItemChanged: [ :process | 
 			process
-				ifNotNil: [ methodPanePresenter
+				ifNotNil: [ selectedContext := process.
+					methodPanePresenter
 						text: process sourceCode;
 						behavior: process methodClass ] ]
 ]
@@ -235,11 +356,22 @@ ProcessBrowserPresenter >> initializeWidgets [
 	currentSelectedProcessPresenter := self newList.
 	methodPanePresenter := self newCode.
 	methodPanePresenter aboutToStyle: true.
-	processListPresenter items: processList; displayBlock: [ :process | self processNameOf: process ].
+	processListPresenter
+		items: processList;
+		displayBlock: [ :process | self processNameOf: process ].
 	self focusOrder
 		add: processListPresenter;
 		add: currentSelectedProcessPresenter;
-		add: methodPanePresenter
+		add: methodPanePresenter.
+	processListPresenter
+		menu: [ :menu :shifted | self processListMenu: menu shifted: shifted ].
+	currentSelectedProcessPresenter
+		menu: [ :menu :shifted | self stackListMenu: menu shifted: shifted ]
+]
+
+{ #category : #inspecting }
+ProcessBrowserPresenter >> inspectContext [
+	selectedContext inspect
 ]
 
 { #category : #inspecting }
@@ -255,6 +387,38 @@ ProcessBrowserPresenter >> inspectPointers [
 { #category : #inspecting }
 ProcessBrowserPresenter >> inspectProcess [
 	selectedProcess inspect
+]
+
+{ #category : #inspecting }
+ProcessBrowserPresenter >> inspectReceiver [
+	selectedContext
+		ifNotNil: [selectedContext receiver inspect]
+]
+
+{ #category : #shortcuts }
+ProcessBrowserPresenter >> keyEventsDict [
+
+	^ keyEventsDict ifNil: [
+		keyEventsDict := Dictionary newFromPairs:  #(
+			$i #inspectProcess
+			$I #exploreProcess
+			$e #explorePointers
+			$P #inspectPointers
+			$t #terminateProcess
+			$r #resumeProcess
+			$s #suspendProcess
+			$d #debugProcess
+			$p #changePriority
+			$m #messageTally
+			$f #findContext
+			$g #nextContext
+			$a #toggleAutoUpdate
+			$u #updateProcessList
+			$S #signalSemaphore
+			$k #moreStack			
+			)
+		]
+
 ]
 
 { #category : #accessing }
@@ -281,6 +445,17 @@ ProcessBrowserPresenter >> prettyNameForProcess: aProcess [
 	aProcess ifNil: [ ^'<nil>' ].
 	nameAndRules := self nameAndRulesFor: aProcess.
 	^ aProcess browserPrintStringWith: nameAndRules first
+]
+
+{ #category : #shortcuts }
+ProcessBrowserPresenter >> processListKey: aKey from: aView [ 
+	self perform: (self keyEventsDict at: aKey ifAbsent: [ ^ self ])
+]
+
+{ #category : #menu }
+ProcessBrowserPresenter >> processListMenu: aMenu shifted: shifted [
+	aMenu addAllFromPragma: 'processBrowserProcessListMenu' target: self.
+	^ aMenu
 ]
 
 { #category : #accessing }
@@ -311,6 +486,21 @@ ProcessBrowserPresenter >> processNameOf: aProcess [
 { #category : #building }
 ProcessBrowserPresenter >> stackList [
 	^ stackList ifNil: [ #() ]
+]
+
+{ #category : #shortcuts }
+ProcessBrowserPresenter >> stackListKey: aKey from: aView [ 
+	aKey = $c ifTrue: [ self inspectContext].
+	aKey = $C ifTrue: [ self exploreContext].
+	aKey = $i ifTrue: [ self inspectReceiver].
+	aKey = $I ifTrue: [ self exploreReceiver].
+	aKey = $b ifTrue: [ self browseContext].
+]
+
+{ #category : #menu }
+ProcessBrowserPresenter >> stackListMenu: aMenu shifted: shifted [
+	aMenu addAllFromPragma: 'processBrowserStackListMenu' target: self.
+	^ aMenu
 ]
 
 { #category : #api }
