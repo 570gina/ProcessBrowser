@@ -13,6 +13,8 @@ Class {
 		'stackList',
 		'selectedProcess',
 		'selectedContext',
+		'selectedClass',
+		'selectedSelector',
 		'keyEventsDict'
 	],
 	#classVars : [
@@ -481,6 +483,27 @@ ProcessBrowserPresenter >> processNameOf: aProcess [
 				asString padLeftTo: 2) , '% ' ]
 		ifNil: [ '' ].
 	^ percent , (self prettyNameForProcess: aProcess)
+]
+
+{ #category : #accessing }
+ProcessBrowserPresenter >> selectedClass [
+	"Answer the class in which the currently selected context's method was  found."
+	^ selectedClass
+		ifNil: [ selectedClass := selectedContext receiver
+				ifNil: [ selectedSelector := selectedContext method selector.
+					   selectedContext method methodClass ]
+				ifNotNil: [ selectedContext methodClass ]]
+]
+
+{ #category : #accessing }
+ProcessBrowserPresenter >> selectedSelector [
+	"Answer the class in which the currently selected context's method was  
+	found."
+	^ selectedSelector
+		ifNil: [selectedSelector := selectedContext receiver
+				ifNil: [selectedClass := selectedContext method methodClass
+					   selectedContext method selector]
+				ifNotNil: [selectedContext selector]]
 ]
 
 { #category : #building }
