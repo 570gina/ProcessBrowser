@@ -10,7 +10,8 @@ Class {
 		'methodPanePresenter',
 		'processList',
 		'autoUpdateProcess',
-		'stackList'
+		'stackList',
+		'selectedProcess'
 	],
 	#classVars : [
 		'SuspendedProcesses',
@@ -151,7 +152,7 @@ ProcessBrowserPresenter class >> unregisterWellKnownProcess: aProcess [
 ProcessBrowserPresenter >> changeStackListTo: aCollection [ 
 
         stackList := aCollection.
-        self changed: #stackNameList.
+        self changed: #stackList.
 ]
 
 { #category : #accessing }
@@ -162,6 +163,23 @@ ProcessBrowserPresenter >> currentSelectedProcessPresenter [
 { #category : #accessing }
 ProcessBrowserPresenter >> currentSelectedProcessPresenter: anObject [
 	currentSelectedProcessPresenter := anObject
+]
+
+{ #category : #inspecting }
+ProcessBrowserPresenter >> explorePointers [
+	| saved |
+	selectedProcess ifNil: [ ^ self ].
+	saved := selectedProcess.
+	[ selectedProcess := nil.
+	(Smalltalk tools hasToolNamed: #pointerExplorer)
+		ifTrue: [ Smalltalk tools pointerExplorer openOn: saved ]
+		ifFalse: [ self inspectPointers ] ]
+		     ensure: [ selectedProcess := saved ]
+]
+
+{ #category : #inspecting }
+ProcessBrowserPresenter >> exploreProcess [
+	selectedProcess inspect
 ]
 
 { #category : #api }
@@ -179,26 +197,25 @@ ProcessBrowserPresenter >> initialize [
 
 { #category : #initialization }
 ProcessBrowserPresenter >> initializePresenter [
-	|suspendedContext|
-	processListPresenter whenSelectionIndexChanged: [ :i |
-		(i>0) 
-			ifTrue: [
-				suspendedContext := (processList at: i) suspendedContext.
-				suspendedContext
-					ifNil: [self changeStackListTo: nil]
-					ifNotNil: [self changeStackListTo: (suspendedContext stackOfSize: 20)].
-				methodPanePresenter text: ''.
-				currentSelectedProcessPresenter items: self stackNameList.
-				currentSelectedProcessPresenter resetSelection.			
-			]
-	].
-	
-	currentSelectedProcessPresenter whenSelectionIndexChanged: [ :i |
-		(i>0) ifTrue: [ 
-			methodPanePresenter 
-				text: (stackList at:i) sourceCode;
-				behavior: Class.
-			]]
+	| suspendedContext |
+	processListPresenter
+		whenSelectedItemChanged: [ :process | 
+			process
+				ifNotNil: [ selectedProcess := process.
+					suspendedContext := process suspendedContext.
+					suspendedContext
+						ifNil: [ self changeStackListTo: nil ]
+						ifNotNil: [ self changeStackListTo: (suspendedContext stackOfSize: 20) ].
+					methodPanePresenter text: ''.
+					currentSelectedProcessPresenter items: self stackList; displayBlock: #asString.
+					currentSelectedProcessPresenter resetSelection ] ].
+			
+	currentSelectedProcessPresenter
+		whenSelectedItemChanged: [ :process | 
+			process
+				ifNotNil: [ methodPanePresenter
+						text: process sourceCode;
+						behavior: process methodClass ] ]
 ]
 
 { #category : #initialization }
@@ -213,20 +230,31 @@ ProcessBrowserPresenter >> initializeProcessList [
 ]
 
 { #category : #initialization }
-ProcessBrowserPresenter >> initializeWidgets [ 
-	
+ProcessBrowserPresenter >> initializeWidgets [
 	processListPresenter := self newList.
-	currentSelectedProcessPresenter  := self newList.
-	methodPanePresenter := self newText.
-	methodPanePresenter
-		aboutToStyle: true;
-		isCodeCompletionAllowed: true.	
-	processListPresenter items: self processNameList.
-	
-	self focusOrder 
+	currentSelectedProcessPresenter := self newList.
+	methodPanePresenter := self newCode.
+	methodPanePresenter aboutToStyle: true.
+	processListPresenter items: processList; displayBlock: [ :process | self processNameOf: process ].
+	self focusOrder
 		add: processListPresenter;
 		add: currentSelectedProcessPresenter;
-		add: methodPanePresenter.
+		add: methodPanePresenter
+]
+
+{ #category : #inspecting }
+ProcessBrowserPresenter >> inspectPointers [
+	| tc pointers |
+	selectedProcess ifNil: [ ^ self ].
+	tc := thisContext.
+	pointers := selectedProcess pointersToExcept: { self processListPresenter. tc. self}.
+	pointers ifEmpty: [ ^ self ].
+	pointers inspectWithLabel: 'Objects pointing to ' , selectedProcess browserPrintString
+]
+
+{ #category : #inspecting }
+ProcessBrowserPresenter >> inspectProcess [
+	selectedProcess inspect
 ]
 
 { #category : #accessing }
@@ -266,25 +294,23 @@ ProcessBrowserPresenter >> processListPresenter: anObject [
 ]
 
 { #category : #building }
-ProcessBrowserPresenter >> processNameList [
+ProcessBrowserPresenter >> processNameOf: aProcess [
 	"since processList is a WeakArray, we have to strengthen the result"
-	| tally |
-	tally := CPUWatcher ifNotNil: [ CPUWatcher current ifNotNil: [ CPUWatcher current tally ] ].
-	
-	^ (processList asOrderedCollection copyWithout: nil)
-		collect: [ :each | 
-			| percent |
-			percent := tally
-				ifNotNil: [ (((tally occurrencesOf: each) * 100.0 / tally size roundTo: 1) asString padLeftTo: 2) , '% ' ]
-				ifNil: [ '' ].
-			percent , (self prettyNameForProcess: each) ]
+
+	| tally percent |
+	tally := CPUWatcher
+		ifNotNil: [ CPUWatcher current ifNotNil: [ CPUWatcher current tally ] ].
+		
+	percent := tally
+		ifNotNil: [ (((tally occurrencesOf: aProcess) * 100.0 / tally size roundTo: 1)
+				asString padLeftTo: 2) , '% ' ]
+		ifNil: [ '' ].
+	^ percent , (self prettyNameForProcess: aProcess)
 ]
 
 { #category : #building }
-ProcessBrowserPresenter >> stackNameList [
-	^ stackList
-		ifNil: [#()]
-		ifNotNil: [stackList collect: [:each | each asString]]
+ProcessBrowserPresenter >> stackList [
+	^ stackList ifNil: [ #() ]
 ]
 
 { #category : #api }
