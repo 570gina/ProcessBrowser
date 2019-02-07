@@ -522,6 +522,14 @@ ProcessBrowser2 >> doItReceiver [
 	^selectedContext ifNil: [ selectedProcess ] ifNotNil: [ selectedContext receiver ]
 ]
 
+{ #category : #shortcuts }
+ProcessBrowser2 >> ensureKeyBindingsFor: aWidget [
+
+	super ensureKeyBindingsFor: aWidget.
+	
+	self registerStackListShortcuts: stackListPresenter.
+]
+
 { #category : #'stack list' }
 ProcessBrowser2 >> exploreContext [
 	selectedContext inspect
@@ -625,10 +633,10 @@ ProcessBrowser2 >> initializeWidgets [
 		add: stackListPresenter;
 		add: textPresenter.
 		
-	"processListPresenter
+	processListPresenter
 		menu: [ :menu :shifted | self processListMenu: menu shifted: shifted ].
-	currentSelectedProcessPresenter
-		menu: [ :menu :shifted | self stackListMenu: menu shifted: shifted ]"
+	stackListPresenter
+		menu: [ :menu :shifted | self stackListMenu: menu shifted: shifted ]
 ]
 
 { #category : #'stack list' }
@@ -812,9 +820,11 @@ ProcessBrowser2 >> processListKey: aKey from: aView [
 	self perform: (self keyEventsDict at: aKey ifAbsent: [ ^ self ])
 ]
 
-{ #category : #'process list' }
-ProcessBrowser2 >> processListMenu: menu [
-	^menu addAllFromPragma: 'processBrowserProcessListMenu' target: self
+{ #category : #menu }
+ProcessBrowser2 >> processListMenu: aMenu shifted: shifted [
+	selectedProcess ifNil: [ ^ nil ].
+	aMenu addAllFromPragma: 'processBrowserProcessListMenu' target: self.
+	^ aMenu
 ]
 
 { #category : #accessing }
@@ -843,6 +853,68 @@ ProcessBrowser2 >> refactor [
 	^ NautilusRefactoring model: self
 ]
 
+{ #category : #shortcuts }
+ProcessBrowser2 >> registerProcessListShortcuts: aWidget [
+	aWidget
+		bindKeyCombination: $i meta
+		toAction: [ selectedProcess ifNotNil: [ self inspectProcess ] ].
+	aWidget
+		bindKeyCombination: $I meta
+		toAction: [ selectedProcess ifNotNil: [ self exploreProcess ] ].
+	aWidget
+		bindKeyCombination: $P meta
+		toAction: [ selectedProcess ifNotNil: [ self inspectPointers ] ].
+	aWidget
+		bindKeyCombination: $e meta
+		toAction: [ selectedProcess ifNotNil: [ self explorePointers ] ].
+	aWidget
+		bindKeyCombination: $t meta
+		toAction: [ selectedProcess ifNotNil: [ self terminateProcess ] ].
+	aWidget
+		bindKeyCombination: $r meta
+		toAction: [ selectedProcess ifNotNil: [ self resumeProcess ] ].
+	aWidget
+		bindKeyCombination: $s meta
+		toAction: [ selectedProcess ifNotNil: [ self suspendProcess ] ].
+	aWidget
+		bindKeyCombination: $p meta
+		toAction: [ selectedProcess ifNotNil: [ self changePriority ] ].
+	aWidget
+		bindKeyCombination: $d meta
+		toAction: [ selectedProcess ifNotNil: [ self debugProcess ] ].
+	aWidget
+		bindKeyCombination: $m meta
+		toAction: [ selectedProcess ifNotNil: [ self messageTally ] ].
+	aWidget
+		bindKeyCombination: $S meta
+		toAction: [ selectedProcess ifNotNil: [ self signalSemaphore ] ].
+	aWidget
+		bindKeyCombination: $k meta
+		toAction: [ selectedProcess ifNotNil: [ self moreStack ] ].
+	aWidget
+		bindKeyCombination: $f meta
+		toAction: [ selectedProcess ifNotNil: [ self findContext ] ].
+	aWidget
+		bindKeyCombination: $g meta
+		toAction: [ selectedProcess ifNotNil: [ self nextContext ] ].
+	aWidget
+		bindKeyCombination: $a meta
+		toAction: [ selectedProcess ifNotNil: [ self toggleAutoUpdate ] ].
+	aWidget
+		bindKeyCombination: $u meta
+		toAction: [ selectedProcess ifNotNil: [ self updateProcessList ] ].
+]
+
+{ #category : #shortcuts }
+ProcessBrowser2 >> registerStackListShortcuts: aWidget [
+
+	aWidget bindKeyCombination: $c meta toAction: [ selectedContext ifNotNil:[ self inspectContext]].
+	aWidget bindKeyCombination: $C meta toAction: [ selectedContext ifNotNil:[ self exploreContext]].
+	aWidget bindKeyCombination: $i meta toAction: [ selectedContext ifNotNil:[ self inspectReceiver]].
+	aWidget bindKeyCombination: $I meta toAction: [ selectedContext ifNotNil:[ self exploreReceiver]].
+	aWidget bindKeyCombination: $b meta toAction: [ selectedContext ifNotNil:[ self browseContext]].
+]
+
 { #category : #'process actions' }
 ProcessBrowser2 >> resumeProcess [
 	selectedProcess
@@ -864,6 +936,11 @@ ProcessBrowser2 >> selectedClass [
 { #category : #accessing }
 ProcessBrowser2 >> selectedClassOrMetaClass [
 	^self doItReceiver class
+]
+
+{ #category : #accessing }
+ProcessBrowser2 >> selectedContext [
+	^selectedContext
 ]
 
 { #category : #accessing }
@@ -948,10 +1025,11 @@ ProcessBrowser2 >> stackListKey: aKey from: aView [
 
 ]
 
-{ #category : #'stack list' }
-ProcessBrowser2 >> stackListMenu: aMenu [ 
-	selectedContext ifNil: [^ aMenu].
-	^aMenu addAllFromPragma: 'processBrowserStackListMenu' target: self
+{ #category : #menu }
+ProcessBrowser2 >> stackListMenu: aMenu shifted: shifted [
+	selectedContext ifNil: [ ^ nil ].
+	aMenu addAllFromPragma: 'processBrowserStackListMenu' target: self.
+	^ aMenu
 ]
 
 { #category : #accessing }

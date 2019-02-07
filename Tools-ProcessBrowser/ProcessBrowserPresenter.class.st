@@ -701,7 +701,6 @@ ProcessBrowserPresenter >> terminateProcess [
 
 { #category : #api }
 ProcessBrowserPresenter >> title [ 
-
 	^ 'Process Browser'
 ]
 
