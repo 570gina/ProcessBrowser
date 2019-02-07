@@ -579,6 +579,7 @@ SpecProcessBrowser >> findContext [
 	found
 		ifFalse: [self processListIndex: initialProcessIndex.
 			self stackListIndex: initialStackIndex].
+	self updateView.
 	^ found
 ]
 
@@ -1189,10 +1190,12 @@ SpecProcessBrowser >> updateStackList: depth [
 SpecProcessBrowser >> updateView [
 	processListPresenter
 		items: processList;
+		setSelectedIndex: processListIndex;
 		displayBlock: [ :process | self processNameOf: process ].
 	stackList
 		ifNotNil: [ stackListPresenter
 				items: self stackList;
+				setSelectedItem: selectedContext;
 				displayBlock: #asString ];
 		ifNil: [ stackListPresenter
 				items: #();
