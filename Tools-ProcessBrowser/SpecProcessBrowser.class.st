@@ -527,7 +527,7 @@ SpecProcessBrowser >> ensureKeyBindingsFor: aWidget [
 
 	super ensureKeyBindingsFor: aWidget.
 	
-	self registerProcessListShortcuts: stackListPresenter.
+	self registerProcessListShortcuts: processListPresenter.
 	self registerStackListShortcuts: stackListPresenter.
 ]
 
