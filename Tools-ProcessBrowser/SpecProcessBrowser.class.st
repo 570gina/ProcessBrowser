@@ -589,7 +589,6 @@ SpecProcessBrowser >> hasView [
 
 { #category : #initialization }
 SpecProcessBrowser >> initialize [
-	super initialize.
 	self class registerWellKnownProcesses.
 	stackListIndex := 0.
 	searchString := ''.
@@ -597,7 +596,7 @@ SpecProcessBrowser >> initialize [
 	textModel :=  RubScrolledTextModel new interactionModel: self; yourself.
 	startedCPUWatcher := CPUWatcher cpuWatcherEnabled and: [ self startCPUWatcher ].
 	self updateProcessList; processListIndex: 1.
-	self updateView.
+	super initialize.
 ]
 
 { #category : #initialization }
@@ -617,7 +616,7 @@ SpecProcessBrowser >> initializePresenter [
 				ifTrue: [ self stackListIndex: index.
 					textPresenter
 						text: selectedContext sourceCode;
-						behavior: selectedContext methodClass ] ]
+						behavior: selectedContext methodClass ] ].
 ]
 
 { #category : #initialization }
@@ -626,7 +625,10 @@ SpecProcessBrowser >> initializeWidgets [
 	stackListPresenter := self newList.
 	textPresenter := self newCode.
 	textPresenter aboutToStyle: true.	
-		
+	processListPresenter
+		items: processList;
+		displayBlock: [ :process | self processNameOf: process ].
+				
 	self focusOrder
 		add: processListPresenter;
 		add: stackListPresenter;
@@ -1116,7 +1118,6 @@ SpecProcessBrowser >> terminateProcess [
 			^ self].
 	self class terminateProcess: selectedProcess.	
 	self updateProcessList.
-	self updateView.
 ]
 
 { #category : #accessing }
@@ -1157,6 +1158,7 @@ SpecProcessBrowser >> updateProcessList [
 	newIndex := processList indexOf: oldSelectedProcess ifAbsent: [ 0 ].
 	self changed: #processNameList.
 	self processListIndex: newIndex.
+
 ]
 
 { #category : #'stack list' }
@@ -1182,18 +1184,7 @@ SpecProcessBrowser >> updateStackList: depth [
 	self
 		stackListIndex: (stackList
 				ifNil: [0]
-				ifNotNil: [stackList indexOf: oldHighlight])
-]
-
-{ #category : #updating }
-SpecProcessBrowser >> updateView [ 
-	processListPresenter
-		items: self processList;
-		displayBlock: [ :process | self processNameOf: process ].
-	stackListPresenter
-		items: #().
-	textPresenter text:''.
-	processListPresenter resetSelection.
+				ifNotNil: [stackList indexOf: oldHighlight]).
 ]
 
 { #category : #'process actions' }
