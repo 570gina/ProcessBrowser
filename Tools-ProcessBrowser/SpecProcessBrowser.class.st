@@ -1195,7 +1195,7 @@ SpecProcessBrowser >> updateView [
 	stackList
 		ifNotNil: [ stackListPresenter
 				items: self stackList;
-				setSelectedItem: selectedContext;
+				setSelectedIndex: stackListIndex;
 				displayBlock: #asString ];
 		ifNil: [ stackListPresenter
 				items: #();
