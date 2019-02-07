@@ -589,6 +589,7 @@ SpecProcessBrowser >> hasView [
 
 { #category : #initialization }
 SpecProcessBrowser >> initialize [
+	super initialize.
 	self class registerWellKnownProcesses.
 	stackListIndex := 0.
 	searchString := ''.
@@ -596,8 +597,7 @@ SpecProcessBrowser >> initialize [
 	textModel :=  RubScrolledTextModel new interactionModel: self; yourself.
 	startedCPUWatcher := CPUWatcher cpuWatcherEnabled and: [ self startCPUWatcher ].
 	self updateProcessList; processListIndex: 1.
-	super initialize.
-
+	self updateView.
 ]
 
 { #category : #initialization }
@@ -609,7 +609,8 @@ SpecProcessBrowser >> initializePresenter [
 					stackListPresenter
 						items: self stackList;
 						displayBlock: #asString.
-					textPresenter text: '' ] ].
+					textPresenter text: ''.
+					stackListPresenter resetSelection.] ].
 	stackListPresenter
 		whenSelectionIndexChanged: [ :index | 
 			index > 0
@@ -625,9 +626,6 @@ SpecProcessBrowser >> initializeWidgets [
 	stackListPresenter := self newList.
 	textPresenter := self newCode.
 	textPresenter aboutToStyle: true.	
-	processListPresenter
-		items: self processList;
-		displayBlock: [ :process | self processNameOf: process ].
 		
 	self focusOrder
 		add: processListPresenter;
@@ -1118,6 +1116,7 @@ SpecProcessBrowser >> terminateProcess [
 			^ self].
 	self class terminateProcess: selectedProcess.	
 	self updateProcessList.
+	self updateView.
 ]
 
 { #category : #accessing }
@@ -1144,22 +1143,18 @@ SpecProcessBrowser >> updateProcessList [
 	| oldSelectedProcess newIndex now |
 	now := Time millisecondClockValue.
 	now - lastUpdate < 500
-		ifTrue: [^ self].
+		ifTrue: [ ^ self ].
 	"Don't update too fast"
 	lastUpdate := now.
 	oldSelectedProcess := selectedProcess.
 	processList := selectedProcess := selectedSelector := nil.
 	Smalltalk garbageCollectMost.
 	"lose defunct processes"
-
 	processList := Process allSubInstances
-				reject: [:each | each isTerminated].
-	processList := processList
-				sort: [:a :b | a priority >= b priority].
+		reject: [ :each | each isTerminated ].
+	processList := processList sort: [ :a :b | a priority >= b priority ].
 	processList := WeakArray withAll: processList.
-	newIndex := processList
-				indexOf: oldSelectedProcess
-				ifAbsent: [0].
+	newIndex := processList indexOf: oldSelectedProcess ifAbsent: [ 0 ].
 	self changed: #processNameList.
 	self processListIndex: newIndex.
 ]
@@ -1188,6 +1183,17 @@ SpecProcessBrowser >> updateStackList: depth [
 		stackListIndex: (stackList
 				ifNil: [0]
 				ifNotNil: [stackList indexOf: oldHighlight])
+]
+
+{ #category : #updating }
+SpecProcessBrowser >> updateView [ 
+	processListPresenter
+		items: self processList;
+		displayBlock: [ :process | self processNameOf: process ].
+	stackListPresenter
+		items: #().
+	textPresenter text:''.
+	processListPresenter resetSelection.
 ]
 
 { #category : #'process actions' }
