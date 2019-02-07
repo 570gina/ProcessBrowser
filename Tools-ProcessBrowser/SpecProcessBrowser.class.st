@@ -589,6 +589,7 @@ SpecProcessBrowser >> hasView [
 
 { #category : #initialization }
 SpecProcessBrowser >> initialize [
+	super initialize.
 	self class registerWellKnownProcesses.
 	stackListIndex := 0.
 	searchString := ''.
@@ -596,7 +597,6 @@ SpecProcessBrowser >> initialize [
 	textModel :=  RubScrolledTextModel new interactionModel: self; yourself.
 	startedCPUWatcher := CPUWatcher cpuWatcherEnabled and: [ self startCPUWatcher ].
 	self updateProcessList; processListIndex: 1.
-	super initialize.
 ]
 
 { #category : #initialization }
@@ -625,9 +625,6 @@ SpecProcessBrowser >> initializeWidgets [
 	stackListPresenter := self newList.
 	textPresenter := self newCode.
 	textPresenter aboutToStyle: true.	
-	processListPresenter
-		items: processList;
-		displayBlock: [ :process | self processNameOf: process ].
 				
 	self focusOrder
 		add: processListPresenter;
@@ -1158,6 +1155,7 @@ SpecProcessBrowser >> updateProcessList [
 	newIndex := processList indexOf: oldSelectedProcess ifAbsent: [ 0 ].
 	self changed: #processNameList.
 	self processListIndex: newIndex.
+	self updateView.
 
 ]
 
@@ -1185,6 +1183,27 @@ SpecProcessBrowser >> updateStackList: depth [
 		stackListIndex: (stackList
 				ifNil: [0]
 				ifNotNil: [stackList indexOf: oldHighlight]).
+]
+
+{ #category : #updating }
+SpecProcessBrowser >> updateView [
+	processListPresenter
+		items: processList;
+		displayBlock: [ :process | self processNameOf: process ].
+	stackList
+		ifNotNil: [ stackListPresenter
+				items: self stackList;
+				displayBlock: #asString ];
+		ifNil: [ stackListPresenter
+				items: #();
+				displayBlock: #asString ].
+	selectedContext
+		ifNotNil: [ textPresenter
+				text: selectedContext sourceCode;
+				behavior: selectedContext methodClass ];
+		ifNil: [ textPresenter
+				text: ''.
+				stackListPresenter resetSelection ].
 ]
 
 { #category : #'process actions' }
