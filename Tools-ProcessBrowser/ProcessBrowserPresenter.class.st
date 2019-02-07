@@ -256,7 +256,9 @@ ProcessBrowserPresenter class >> unregisterWellKnownProcess: aProcess [
 { #category : #'stack list' }
 ProcessBrowserPresenter >> browseContext [
 	selectedContext ifNil: [ ^ self ]. 
-	Smalltalk tools browser openOnClass: self selectedClass selector: self selectedSelector
+	self selectedClass.
+	self selectedSelector.
+	Smalltalk tools browser openOnClass: selectedClass selector: selectedSelector.
 ]
 
 { #category : #building }
@@ -274,6 +276,19 @@ ProcessBrowserPresenter >> currentSelectedProcessPresenter [
 { #category : #accessing }
 ProcessBrowserPresenter >> currentSelectedProcessPresenter: anObject [
 	currentSelectedProcessPresenter := anObject
+]
+
+{ #category : #accessing }
+ProcessBrowserPresenter >> doItReceiver [
+	^selectedContext ifNil: [ selectedProcess ] ifNotNil: [ selectedContext receiver ]
+]
+
+{ #category : #shortcuts }
+ProcessBrowserPresenter >> ensureKeyBindingsFor: aWidget [
+
+	super ensureKeyBindingsFor: aWidget.
+	
+	self registerStackListShortcuts: currentSelectedProcessPresenter.
 ]
 
 { #category : #inspecting }
@@ -323,19 +338,22 @@ ProcessBrowserPresenter >> initializePresenter [
 		whenSelectedItemChanged: [ :process | 
 			process
 				ifNotNil: [ selectedProcess := process.
+					selectedClass := selectedSelector := nil.
 					suspendedContext := process suspendedContext.
 					suspendedContext
 						ifNil: [ self changeStackListTo: nil ]
 						ifNotNil: [ self changeStackListTo: (suspendedContext stackOfSize: 20) ].
-					methodPanePresenter text: ''.
 					currentSelectedProcessPresenter
 						items: self stackList;
 						displayBlock: #asString.
-					currentSelectedProcessPresenter resetSelection ] ].
+					currentSelectedProcessPresenter resetSelection.
+					methodPanePresenter text: '' ] ].
+			
 	currentSelectedProcessPresenter
 		whenSelectedItemChanged: [ :process | 
 			process
 				ifNotNil: [ selectedContext := process.
+					selectedClass := selectedSelector := nil.
 					methodPanePresenter
 						text: process sourceCode;
 						behavior: process methodClass ] ]
@@ -343,7 +361,6 @@ ProcessBrowserPresenter >> initializePresenter [
 
 { #category : #initialization }
 ProcessBrowserPresenter >> initializeProcessList [
-	
  	Smalltalk garbageCollectMost.
 	processList := Process allSubInstances
 				reject: [:each | each isTerminated].
@@ -361,10 +378,12 @@ ProcessBrowserPresenter >> initializeWidgets [
 	processListPresenter
 		items: processList;
 		displayBlock: [ :process | self processNameOf: process ].
+
 	self focusOrder
 		add: processListPresenter;
 		add: currentSelectedProcessPresenter;
 		add: methodPanePresenter.
+		
 	processListPresenter
 		menu: [ :menu :shifted | self processListMenu: menu shifted: shifted ].
 	currentSelectedProcessPresenter
@@ -449,13 +468,9 @@ ProcessBrowserPresenter >> prettyNameForProcess: aProcess [
 	^ aProcess browserPrintStringWith: nameAndRules first
 ]
 
-{ #category : #shortcuts }
-ProcessBrowserPresenter >> processListKey: aKey from: aView [ 
-	self perform: (self keyEventsDict at: aKey ifAbsent: [ ^ self ])
-]
-
 { #category : #menu }
 ProcessBrowserPresenter >> processListMenu: aMenu shifted: shifted [
+	selectedProcess ifNil: [ ^ nil ].
 	aMenu addAllFromPragma: 'processBrowserProcessListMenu' target: self.
 	^ aMenu
 ]
@@ -485,14 +500,51 @@ ProcessBrowserPresenter >> processNameOf: aProcess [
 	^ percent , (self prettyNameForProcess: aProcess)
 ]
 
+{ #category : #menu }
+ProcessBrowserPresenter >> registerProcessShortcuts: aWidget [
+	aWidget
+		bindKeyCombination: $b meta shift toAction: [ self selectedChangeSet ifNotNil:[ self openChangeSetBrowser ]].
+]
+
+{ #category : #shortcuts }
+ProcessBrowserPresenter >> registerStackListShortcuts: aWidget [
+
+	aWidget bindKeyCombination: $c meta toAction: [ self selectedContext ifNotNil:[ self inspectContext]].
+	aWidget bindKeyCombination: $C meta toAction: [ self selectedContext ifNotNil:[ self exploreContext]].
+	aWidget bindKeyCombination: $i meta toAction: [ self selectedContext ifNotNil:[ self inspectReceiver]].
+	aWidget bindKeyCombination: $I meta toAction: [ self selectedContext ifNotNil:[ self exploreReceiver]].
+	aWidget bindKeyCombination: $b meta toAction: [ self selectedContext ifNotNil:[ self browseContext]].
+	
+]
+
 { #category : #accessing }
 ProcessBrowserPresenter >> selectedClass [
 	"Answer the class in which the currently selected context's method was  found."
-	^ selectedClass
+	^selectedClass
 		ifNil: [ selectedClass := selectedContext receiver
 				ifNil: [ selectedSelector := selectedContext method selector.
 					   selectedContext method methodClass ]
-				ifNotNil: [ selectedContext methodClass ]]
+				ifNotNil: [ selectedContext methodClass ]].
+]
+
+{ #category : #accessing }
+ProcessBrowserPresenter >> selectedClassOrMetaClass [
+	^self doItReceiver class
+]
+
+{ #category : #accessing }
+ProcessBrowserPresenter >> selectedContext [
+	^selectedContext
+]
+
+{ #category : #accessing }
+ProcessBrowserPresenter >> selectedMethod [
+	^selectedContext ifNotNil: [ selectedContext method ]
+]
+
+{ #category : #accessing }
+ProcessBrowserPresenter >> selectedProcess [
+	^selectedProcess
 ]
 
 { #category : #accessing }
@@ -506,24 +558,40 @@ ProcessBrowserPresenter >> selectedSelector [
 				ifNotNil: [selectedContext selector]]
 ]
 
+{ #category : #updating }
+ProcessBrowserPresenter >> shoutAboutToStyle: aPluggableShoutMorphOrView [
+
+	selectedContext ifNil: [^false].
+	aPluggableShoutMorphOrView classOrMetaClass: self selectedClass.
+	^ true
+]
+
 { #category : #building }
 ProcessBrowserPresenter >> stackList [
 	^ stackList ifNil: [ #() ]
 ]
 
-{ #category : #shortcuts }
-ProcessBrowserPresenter >> stackListKey: aKey from: aView [ 
-	aKey = $c ifTrue: [ self inspectContext].
-	aKey = $C ifTrue: [ self exploreContext].
-	aKey = $i ifTrue: [ self inspectReceiver].
-	aKey = $I ifTrue: [ self exploreReceiver].
-	aKey = $b ifTrue: [ self browseContext].
-]
-
 { #category : #menu }
 ProcessBrowserPresenter >> stackListMenu: aMenu shifted: shifted [
+	selectedContext ifNil: [ ^ nil ].
 	aMenu addAllFromPragma: 'processBrowserStackListMenu' target: self.
 	^ aMenu
+]
+
+{ #category : #shortcuts }
+ProcessBrowserPresenter >> stackListShortcuts: event from: aMorph [
+	selectedContext
+		ifNotNil: [ 
+			event keyString = '<Cmd-c>'
+				ifTrue: [ self inspectContext ].
+			event keyString = '<Cmd-C>'
+				ifTrue: [ self exploreContext ].
+			event keyString = '<Cmd-i>'
+				ifTrue: [ self inspectReceiver ].
+			event keyString = '<Cmd-I>'
+				ifTrue: [ self exploreReceiver ].
+			event keyString = '<Cmd-b>'
+				ifTrue: [ self browseContext ] ]
 ]
 
 { #category : #api }
