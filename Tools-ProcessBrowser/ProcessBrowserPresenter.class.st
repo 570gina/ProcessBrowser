@@ -8,14 +8,16 @@ Class {
 		'processListPresenter',
 		'currentSelectedProcessPresenter',
 		'methodPanePresenter',
-		'processList',
 		'autoUpdateProcess',
+		'processList',
 		'stackList',
 		'selectedProcess',
 		'selectedContext',
 		'selectedClass',
 		'selectedSelector',
-		'keyEventsDict'
+		'startedCPUWatcher',
+		'keyEventsDict',
+		'deferredMessageRecipient'
 	],
 	#classVars : [
 		'SuspendedProcesses',
@@ -109,13 +111,13 @@ ProcessBrowserPresenter class >> menuProcessList: aBuilder [
 		keyText: 'g';
 		selector: #nextContext;
 		withSeparatorAfter.
-	(aBuilder
+	"(aBuilder
 		item:
 		(target isAutoUpdating
 		ifTrue: [ #'Turn off auto-update' ]
 		ifFalse: [ #'Turn on auto-update' ]))
 		keyText: 'a';
-		selector: #toggleAutoUpdate.
+		selector: #toggleAutoUpdate."
 	(aBuilder item: #'Update list')
 		keyText: 'u';
 		selector: #updateProcessList.
@@ -244,6 +246,16 @@ ProcessBrowserPresenter class >> suspendedProcesses [
 ]
 
 { #category : #'from legacy' }
+ProcessBrowserPresenter class >> terminateProcess: aProcess [
+	aProcess ifNotNil: [
+		self suspendedProcesses
+			removeKey: aProcess
+			ifAbsent: [].
+		aProcess terminate
+	].
+]
+
+{ #category : #'from legacy' }
 ProcessBrowserPresenter class >> unregisterWellKnownProcess: aProcess [
 	"Remove the first registry entry that matches aProcess. Use
 	with caution if more than one registry entry may match aProcess."
@@ -261,7 +273,29 @@ ProcessBrowserPresenter >> browseContext [
 	Smalltalk tools browser openOnClass: selectedClass selector: selectedSelector.
 ]
 
-{ #category : #building }
+{ #category : #'process actions' }
+ProcessBrowserPresenter >> changePriority [
+	| str newPriority nameAndRules |
+	nameAndRules := self nameAndRulesForSelectedProcess.
+	nameAndRules third
+		ifFalse: [self inform: 'Nope, won''t change priority of ' , nameAndRules first.
+			^ self].
+	str := UIManager default 
+				request: 'New priority' 
+		  initialAnswer: selectedProcess priority asString.
+	str ifNil: [str := String new].
+	newPriority := str asNumber asInteger.
+	newPriority
+		ifNil: [^ self].
+	(newPriority < 1
+			or: [newPriority > Processor highestPriority])
+		ifTrue: [self inform: 'Bad priority'.
+			^ self].
+	self class setProcess: selectedProcess toPriority: newPriority.
+	self updateProcessList
+]
+
+{ #category : #'stack list' }
 ProcessBrowserPresenter >> changeStackListTo: aCollection [ 
 
         stackList := aCollection.
@@ -276,6 +310,26 @@ ProcessBrowserPresenter >> currentSelectedProcessPresenter [
 { #category : #accessing }
 ProcessBrowserPresenter >> currentSelectedProcessPresenter: anObject [
 	currentSelectedProcessPresenter := anObject
+]
+
+{ #category : #'process actions' }
+ProcessBrowserPresenter >> debugProcess [
+	| nameAndRules |
+	nameAndRules := self nameAndRulesForSelectedProcess.
+	nameAndRules third
+		ifFalse: [self inform: 'Nope, won''t debug ' , nameAndRules first.
+			^ self].
+	self class debugProcess: selectedProcess.
+]
+
+{ #category : #accessing }
+ProcessBrowserPresenter >> deferredMessageRecipient: anObject [
+	deferredMessageRecipient := anObject
+]
+
+{ #category : #accessing }
+ProcessBrowserPresenter >> doItContext [
+	^selectedContext
 ]
 
 { #category : #accessing }
@@ -347,6 +401,7 @@ ProcessBrowserPresenter >> initializePresenter [
 						items: self stackList;
 						displayBlock: #asString.
 					currentSelectedProcessPresenter resetSelection.
+					selectedContext := nil.
 					methodPanePresenter text: '' ] ].
 			
 	currentSelectedProcessPresenter
@@ -378,7 +433,6 @@ ProcessBrowserPresenter >> initializeWidgets [
 	processListPresenter
 		items: processList;
 		displayBlock: [ :process | self processNameOf: process ].
-
 	self focusOrder
 		add: processListPresenter;
 		add: currentSelectedProcessPresenter;
@@ -442,6 +496,23 @@ ProcessBrowserPresenter >> keyEventsDict [
 
 ]
 
+{ #category : #initialization }
+ProcessBrowserPresenter >> mayBeStartCPUWatcher [
+	startedCPUWatcher ifTrue: [ self setUpdateCallbackAfter: 7 ].
+]
+
+{ #category : #'stack list' }
+ProcessBrowserPresenter >> messageTally [
+	| secString secs |
+	secString := UIManager default request: 'Profile for how many seconds?' initialAnswer: '4'.
+	secString ifNil: [secString := String new].
+	secs := secString asNumber asInteger.
+	(secs isNil
+			or: [secs isZero])
+		ifTrue: [^ self].
+	[ Smalltalk tools timeProfiler spyOnProcess: selectedProcess forMilliseconds: secs * 1000 ] forkAt: selectedProcess priority + 1.
+]
+
 { #category : #accessing }
 ProcessBrowserPresenter >> methodPanePresenter [
 	^ methodPanePresenter
@@ -452,12 +523,25 @@ ProcessBrowserPresenter >> methodPanePresenter: anObject [
 	methodPanePresenter := anObject
 ]
 
-{ #category : #building }
+{ #category : #'process actions' }
 ProcessBrowserPresenter >> nameAndRulesFor: aProcess [ 
 	"Answer a nickname and two flags: allow-stop, and allow-debug"
 	aProcess == autoUpdateProcess ifTrue: [ ^{'my auto-update process'. true. true} ].
 	^self class nameAndRulesFor: aProcess 
 
+]
+
+{ #category : #'process actions' }
+ProcessBrowserPresenter >> nameAndRulesForSelectedProcess [
+	"Answer a nickname and two flags: allow-stop, and allow-debug"
+	^self nameAndRulesFor: selectedProcess
+]
+
+{ #category : #'process list' }
+ProcessBrowserPresenter >> notify: errorString at: location in: aStream [ 
+	"A syntax error happened when I was trying to highlight my pc. 
+	Raise a signal so that it can be ignored."
+	Warning signal: 'syntax error'
 ]
 
 { #category : #building }
@@ -566,6 +650,16 @@ ProcessBrowserPresenter >> shoutAboutToStyle: aPluggableShoutMorphOrView [
 	^ true
 ]
 
+{ #category : #'process actions' }
+ProcessBrowserPresenter >> signalSemaphore [
+	(selectedProcess suspendingList isKindOf: Semaphore)
+		ifFalse: [^ self].
+	[selectedProcess suspendingList signal] fork.
+	(Delay forMilliseconds: 300) wait.
+	"Hate to make the UI wait, but it's convenient..."
+	self updateProcessList
+]
+
 { #category : #building }
 ProcessBrowserPresenter >> stackList [
 	^ stackList ifNil: [ #() ]
@@ -594,8 +688,33 @@ ProcessBrowserPresenter >> stackListShortcuts: event from: aMorph [
 				ifTrue: [ self browseContext ] ]
 ]
 
+{ #category : #building }
+ProcessBrowserPresenter >> terminateProcess [
+	| nameAndRules |
+	nameAndRules := self nameAndRulesForSelectedProcess.
+	nameAndRules second
+		ifFalse: [self inform: 'Nope, won''t kill ' , nameAndRules first.
+			^ self].
+	self class terminateProcess: selectedProcess.	
+	self updateProcessList.
+]
+
 { #category : #api }
 ProcessBrowserPresenter >> title [ 
 
 	^ 'Process Browser'
+]
+
+{ #category : #updating }
+ProcessBrowserPresenter >> updateProcessList [
+	stackList := nil.
+	currentSelectedProcessPresenter
+		items: self stackList;
+		displayBlock: #asString.
+	self initializeProcessList.
+	processListPresenter
+		items: processList;
+		displayBlock: [ :process | self processNameOf: process ].
+	selectedContext := nil.
+	methodPanePresenter text: ''
 ]
