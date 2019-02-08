@@ -1,3 +1,6 @@
+"
+SpecProcessBrowser new openWithSpec
+"
 Class {
 	#name : #SpecProcessBrowser,
 	#superclass : #ComposablePresenter,
@@ -136,7 +139,7 @@ SpecProcessBrowser class >> menuCommandOn: aBuilder [
 { #category : #menu }
 SpecProcessBrowser class >> menuProcessList: aBuilder [ 
 	<contextMenu>
-	<processBrowserProcessListMenu>
+	<processBrowserProcessMenu>
 
 	| target selectedProcess |
 	
@@ -235,7 +238,7 @@ SpecProcessBrowser class >> menuProcessList: aBuilder [
 { #category : #menu }
 SpecProcessBrowser class >> menuStackList: aBuilder [
 	<contextMenu>
-	<processBrowserStackListMenu>
+	<processBrowserStackMenu>
 	
 	(aBuilder item: #'Inspect context')
 		keyText: 'c';
@@ -822,7 +825,7 @@ SpecProcessBrowser >> processListKey: aKey from: aView [
 { #category : #menu }
 SpecProcessBrowser >> processListMenu: aMenu shifted: shifted [
 	selectedProcess ifNil: [ ^ nil ].
-	aMenu addAllFromPragma: 'processBrowserProcessListMenu' target: self.
+	aMenu addAllFromPragma: 'processBrowserProcessMenu' target: self.
 	^ aMenu
 ]
 
@@ -1036,7 +1039,7 @@ SpecProcessBrowser >> stackListKey: aKey from: aView [
 { #category : #menu }
 SpecProcessBrowser >> stackListMenu: aMenu shifted: shifted [
 	selectedContext ifNil: [ ^ nil ].
-	aMenu addAllFromPragma: 'processBrowserStackListMenu' target: self.
+	aMenu addAllFromPragma: 'processBrowserStackMenu' target: self.
 	^ aMenu
 ]
 
