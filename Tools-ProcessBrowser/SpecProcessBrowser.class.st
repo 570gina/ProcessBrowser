@@ -22,7 +22,10 @@ Class {
 		'textModel',
 		'processListPresenter',
 		'stackListPresenter',
-		'textPresenter'
+		'textPresenter',
+		'autoUpdateButton',
+		'updateButton',
+		'theCPUWatcherButton'
 	],
 	#classVars : [
 		'SuspendedProcesses',
@@ -48,13 +51,18 @@ SpecProcessBrowser class >> debugProcess: aProcess [
 
 { #category : #specs }
 SpecProcessBrowser class >> defaultSpec [
-	
 	^ SpecColumnLayout composed
-		newRow: [:row | 
-			row add: #processListPresenter; add: #stackListPresenter];
-		newRow: [ :row |
-			row add: #textPresenter ];
-		yourself.
+		newRow: [ :row | 
+			row
+				add: #processListPresenter;
+				add: #stackListPresenter ];
+		newRow: [ :row | 
+			row
+				add: #autoUpdateButton;
+				add: #updateButton;
+				add: #theCPUWatcherButton ] height: self toolbarHeight;
+		add: #textPresenter;
+		yourself
 ]
 
 { #category : #'CPU utilization' }
@@ -212,8 +220,8 @@ SpecProcessBrowser class >> menuProcessList: aBuilder [
 		keyText: 'g';
 		selector: #nextContext;
 		withSeparatorAfter.
-		
-	(aBuilder item: (target isAutoUpdating
+
+	"(aBuilder item: (target isAutoUpdating
 			ifTrue: [ #'Turn off auto-update' ]
 			ifFalse: [ #'Turn on auto-update' ]))
 		keyText: 'a';
@@ -232,7 +240,7 @@ SpecProcessBrowser class >> menuProcessList: aBuilder [
 						selector: #stopCPUWatcher ]
 				ifFalse: [ 
 					(aBuilder item: #'Start CPUWatcher')
-						selector: #startCPUWatcher ] ].
+						selector: #startCPUWatcher ]]."
 ]
 
 { #category : #menu }
@@ -458,6 +466,11 @@ SpecProcessBrowser class >> wasProcessSuspendedByProcessBrowser: aProcess [
 	^self suspendedProcesses includesKey: aProcess
 ]
 
+{ #category : #accessing }
+SpecProcessBrowser >> autoUpdateButton [
+	^ autoUpdateButton
+]
+
 { #category : #'stack list' }
 SpecProcessBrowser >> browseContext [
 	selectedContext ifNil: [ ^ self ]. 
@@ -586,6 +599,14 @@ SpecProcessBrowser >> findContext [
 	^ found
 ]
 
+{ #category : #updating }
+SpecProcessBrowser >> getCPUWatcherState [
+	Smalltalk globals
+		at: #CPUWatcher
+		ifPresent: [ :pw | 
+			^(pw isMonitoring)]
+]
+
 { #category : #views }
 SpecProcessBrowser >> hasView [
 	^self dependents isEmptyOrNil not
@@ -621,7 +642,27 @@ SpecProcessBrowser >> initializePresenter [
 				ifTrue: [ self stackListIndex: index.
 					textPresenter
 						text: selectedContext sourceCode;
-						behavior: selectedContext methodClass ] ]
+						behavior: selectedContext methodClass ] ].
+	autoUpdateButton
+		action: [ self toggleAutoUpdate.
+			self isAutoUpdating
+				ifTrue: [ autoUpdateButton
+						label: 'Stop auto-update';
+						icon: (self iconNamed: #stop) ]
+				ifFalse: [ autoUpdateButton
+						label: 'Start auto-update';
+						icon: (self iconNamed: #smallDoIt) ] ].
+	updateButton action: [ self updateProcessList ].
+	theCPUWatcherButton
+		action: [ self getCPUWatcherState
+				ifTrue: [ theCPUWatcherButton
+						label: 'start auto-update';
+						icon: (self iconNamed: #smallDoIt).
+					self stopCPUWatcher ]
+				ifFalse: [ theCPUWatcherButton
+						label: 'Stop CPUWatcher';
+						icon: (self iconNamed: #stop).
+					self startCPUWatcher ] ]
 ]
 
 { #category : #initialization }
@@ -629,13 +670,30 @@ SpecProcessBrowser >> initializeWidgets [
 	processListPresenter := self newList.
 	stackListPresenter := self newList.
 	textPresenter := self newCode.
-	textPresenter aboutToStyle: true.	
-				
+	textPresenter aboutToStyle: true.
+	autoUpdateButton := self newButton.
+	updateButton := self newButton.
+	theCPUWatcherButton := self newButton.
+	autoUpdateButton
+		label: 'Start auto-update';
+		icon: (self iconNamed: #smallDoIt).
+	updateButton
+		label: 'Update list';
+		icon: (self iconNamed: #smallUpdate).
+	self getCPUWatcherState
+		ifTrue: [ theCPUWatcherButton
+				label: 'Stop auto-update';
+				icon: (self iconNamed: #stop) ]
+		ifFalse: [ theCPUWatcherButton
+				label: 'Start CPUWatcher';
+				icon: (self iconNamed: #smallDoIt) ].
 	self focusOrder
 		add: processListPresenter;
 		add: stackListPresenter;
-		add: textPresenter.
-		
+		add: textPresenter;
+		add: autoUpdateButton;
+		add: updateButton;
+		add: theCPUWatcherButton.
 	processListPresenter
 		menu: [ :menu :shifted | self processListMenu: menu shifted: shifted ].
 	stackListPresenter
@@ -900,12 +958,12 @@ SpecProcessBrowser >> registerProcessListShortcuts: aWidget [
 	aWidget
 		bindKeyCombination: $g meta
 		toAction: [ selectedProcess ifNotNil: [ self nextContext ] ].
-	aWidget
+	"aWidget
 		bindKeyCombination: $a meta
 		toAction: [ selectedProcess ifNotNil: [ self toggleAutoUpdate ] ].
 	aWidget
 		bindKeyCombination: $u meta
-		toAction: [ selectedProcess ifNotNil: [ self updateProcessList ] ].
+		toAction: [ selectedProcess ifNotNil: [ self updateProcessList ] ]."
 ]
 
 { #category : #shortcuts }
@@ -1128,6 +1186,11 @@ SpecProcessBrowser >> textPresenter [
 
 ]
 
+{ #category : #accessing }
+SpecProcessBrowser >> theCPUWatcherButton [
+	^ theCPUWatcherButton
+]
+
 { #category : #api }
 SpecProcessBrowser >> title [ 
 	^ 'Process Browser'
@@ -1139,6 +1202,11 @@ SpecProcessBrowser >> toggleAutoUpdate [
 		ifTrue: [ self stopAutoUpdate ]
 		ifFalse: [ self startAutoUpdate ].
 
+]
+
+{ #category : #accessing }
+SpecProcessBrowser >> updateButton [
+	^ updateButton
 ]
 
 { #category : #'process list' }
