@@ -656,7 +656,7 @@ SpecProcessBrowser >> initializePresenter [
 	theCPUWatcherButton
 		action: [ self getCPUWatcherState
 				ifTrue: [ theCPUWatcherButton
-						label: 'Start auto-update';
+						label: 'Start CPUWatcher';
 						icon: (self iconNamed: #smallDoIt).
 					self stopCPUWatcher ]
 				ifFalse: [ theCPUWatcherButton
@@ -682,7 +682,7 @@ SpecProcessBrowser >> initializeWidgets [
 		icon: (self iconNamed: #smallUpdate).
 	self getCPUWatcherState
 		ifTrue: [ theCPUWatcherButton
-				label: 'Stop auto-update';
+				label: 'Stop CPUWatcher';
 				icon: (self iconNamed: #stop) ]
 		ifFalse: [ theCPUWatcherButton
 				label: 'Start CPUWatcher';
