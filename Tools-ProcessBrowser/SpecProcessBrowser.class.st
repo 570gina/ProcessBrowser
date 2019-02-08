@@ -656,7 +656,7 @@ SpecProcessBrowser >> initializePresenter [
 	theCPUWatcherButton
 		action: [ self getCPUWatcherState
 				ifTrue: [ theCPUWatcherButton
-						label: 'start auto-update';
+						label: 'Start auto-update';
 						icon: (self iconNamed: #smallDoIt).
 					self stopCPUWatcher ]
 				ifFalse: [ theCPUWatcherButton
@@ -1264,6 +1264,7 @@ SpecProcessBrowser >> updateView [
 		items: processList;
 		setSelectedIndex: processListIndex;
 		displayBlock: [ :process | self processNameOf: process ].
+		
 	stackList
 		ifNotNil: [ stackListPresenter
 				items: self stackList;
