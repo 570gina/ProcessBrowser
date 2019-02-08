@@ -213,11 +213,11 @@ SpecProcessBrowser class >> menuProcessList: aBuilder [
 		selector: #nextContext;
 		withSeparatorAfter.
 		
-	"(aBuilder item: (target isAutoUpdating
+	(aBuilder item: (target isAutoUpdating
 			ifTrue: [ #'Turn off auto-update' ]
 			ifFalse: [ #'Turn on auto-update' ]))
 		keyText: 'a';
-		selector: #toggleAutoUpdate."
+		selector: #toggleAutoUpdate.
 	(aBuilder item: #'Update list')
 		keyText: 'u';
 		selector: #updateProcessList.
@@ -609,18 +609,19 @@ SpecProcessBrowser >> initializePresenter [
 		whenSelectionIndexChanged: [ :index | 
 			index > 0
 				ifTrue: [ self processListIndex: index.
-					stackListPresenter
-						items: self stackList;
-						displayBlock: #asString.
-					textPresenter text: ''.
-					stackListPresenter resetSelection.] ].
+					selectedProcess
+						ifNotNil: [ stackListPresenter
+								items: self stackList;
+								displayBlock: #asString.
+							textPresenter text: ''.
+							stackListPresenter resetSelection ] ] ].
 	stackListPresenter
 		whenSelectionIndexChanged: [ :index | 
 			index > 0
 				ifTrue: [ self stackListIndex: index.
 					textPresenter
 						text: selectedContext sourceCode;
-						behavior: selectedContext methodClass ] ].
+						behavior: selectedContext methodClass ] ]
 ]
 
 { #category : #initialization }
