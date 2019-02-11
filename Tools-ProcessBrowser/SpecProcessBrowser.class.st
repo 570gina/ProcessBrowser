@@ -640,9 +640,10 @@ SpecProcessBrowser >> initializePresenter [
 						items: self stackList;
 						displayBlock: #asString.
 					textPresenter text: ''.
-					stackListPresenter resetSelection.];
+					stackListPresenter resetSelection ];
 				ifNil: [ stackListPresenter items: #().
-					textPresenter text: ''.] ].
+					textPresenter text: '' ].
+			self processListIndex: processListPresenter selectedIndex ].
 	stackListPresenter
 		whenSelectedItemChanged: [ :item | 
 			item
