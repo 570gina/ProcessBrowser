@@ -25,7 +25,9 @@ Class {
 		'textPresenter',
 		'autoUpdateButton',
 		'updateButton',
-		'theCPUWatcherButton'
+		'theCPUWatcherButton',
+		'processLabel',
+		'stackLabel'
 	],
 	#classVars : [
 		'SuspendedProcesses',
@@ -52,6 +54,10 @@ SpecProcessBrowser class >> debugProcess: aProcess [
 { #category : #specs }
 SpecProcessBrowser class >> defaultSpec [
 	^ SpecColumnLayout composed
+		newRow: [ :row | 
+			row
+				add: #processLabel;
+				add: #stackLabel ] height: self defaultFont height;
 		newRow: [ :row | 
 			row
 				add: #processListPresenter;
@@ -627,22 +633,24 @@ SpecProcessBrowser >> initialize [
 { #category : #initialization }
 SpecProcessBrowser >> initializePresenter [
 	processListPresenter
-		whenSelectionIndexChanged: [ :index | 
-			index > 0
-				ifTrue: [ self processListIndex: index.
-					selectedProcess
-						ifNotNil: [ stackListPresenter
-								items: self stackList;
-								displayBlock: #asString.
-							textPresenter text: ''.
-							stackListPresenter resetSelection ] ] ].
+		whenSelectedItemChanged: [ :item | 
+			item
+				ifNotNil: [ self processListIndex: processListPresenter selectedIndex.
+					stackListPresenter
+						items: self stackList;
+						displayBlock: #asString.
+					textPresenter text: ''.
+					stackListPresenter resetSelection.];
+				ifNil: [ stackListPresenter items: #().
+					textPresenter text: ''.] ].
 	stackListPresenter
-		whenSelectionIndexChanged: [ :index | 
-			index > 0
-				ifTrue: [ self stackListIndex: index.
+		whenSelectedItemChanged: [ :item | 
+			item
+				ifNotNil: [ self stackListIndex: stackListPresenter selectedIndex.
 					textPresenter
 						text: selectedContext sourceCode;
-						behavior: selectedContext methodClass ] ].
+						behavior: selectedContext methodClass ];
+				ifNil: [ textPresenter text: '' ] ].
 	autoUpdateButton
 		action: [ self toggleAutoUpdate.
 			self isAutoUpdating
@@ -667,19 +675,29 @@ SpecProcessBrowser >> initializePresenter [
 
 { #category : #initialization }
 SpecProcessBrowser >> initializeWidgets [
+	processLabel := self newLabel.
+	processLabel label: 'Process List'.
+	
+	stackLabel := self newLabel.
+	stackLabel label: 'Stack List'.
+		
 	processListPresenter := self newList.
 	stackListPresenter := self newList.
+	
 	textPresenter := self newCode.
 	textPresenter aboutToStyle: true.
+	
 	autoUpdateButton := self newButton.
 	updateButton := self newButton.
 	theCPUWatcherButton := self newButton.
+	
 	autoUpdateButton
 		label: 'Start auto-update';
 		icon: (self iconNamed: #smallDoIt).
 	updateButton
 		label: 'Update list';
 		icon: (self iconNamed: #smallUpdate).
+		
 	self getCPUWatcherState
 		ifTrue: [ theCPUWatcherButton
 				label: 'Stop CPUWatcher';
@@ -687,13 +705,13 @@ SpecProcessBrowser >> initializeWidgets [
 		ifFalse: [ theCPUWatcherButton
 				label: 'Start CPUWatcher';
 				icon: (self iconNamed: #smallDoIt) ].
+			
 	self focusOrder
 		add: processListPresenter;
 		add: stackListPresenter;
-		add: textPresenter;
-		add: autoUpdateButton;
-		add: updateButton;
-		add: theCPUWatcherButton.
+		add: textPresenter.
+	
+	self deferredMessageRecipient: WorldState.
 	processListPresenter
 		menu: [ :menu :shifted | self processListMenu: menu shifted: shifted ].
 	stackListPresenter
@@ -857,6 +875,11 @@ SpecProcessBrowser >> prettyNameForProcess: aProcess [
 ]
 
 { #category : #accessing }
+SpecProcessBrowser >> processLabel [
+	^processLabel
+]
+
+{ #category : #accessing }
 SpecProcessBrowser >> processList [
 	^ processList
 ]
@@ -903,7 +926,7 @@ SpecProcessBrowser >> processNameOf: aProcess [
 		
 	percent := tally
 		ifNotNil: [ (((tally occurrencesOf: aProcess) * 100.0 / tally size roundTo: 1)
-				asString padLeftTo: 2) , '% ' ]
+				asString padLeftTo: 2) , '% ']
 		ifNil: [ '' ].
 	^ percent , (self prettyNameForProcess: aProcess)
 ]
@@ -1065,6 +1088,11 @@ SpecProcessBrowser >> signalSemaphore [
 ]
 
 { #category : #accessing }
+SpecProcessBrowser >> stackLabel [
+	^stackLabel
+]
+
+{ #category : #accessing }
 SpecProcessBrowser >> stackList [
 	^ stackList
 ]
@@ -1132,7 +1160,6 @@ SpecProcessBrowser >> startAutoUpdate [
 { #category : #initialization }
 SpecProcessBrowser >> startCPUWatcher [
 	"Answers whether I started the CPUWatcher"
-
 	CPUWatcher isMonitoring
 		ifFalse: [ 
 					CPUWatcher startMonitoringPeriod: 5 rate: 100 threshold: 0.85.
@@ -1226,10 +1253,8 @@ SpecProcessBrowser >> updateProcessList [
 	processList := processList sort: [ :a :b | a priority >= b priority ].
 	processList := WeakArray withAll: processList.
 	newIndex := processList indexOf: oldSelectedProcess ifAbsent: [ 0 ].
-	self changed: #processNameList.
 	self processListIndex: newIndex.
-	self updateView.
-
+	self updateView
 ]
 
 { #category : #'stack list' }
@@ -1273,6 +1298,7 @@ SpecProcessBrowser >> updateView [
 		ifNil: [ stackListPresenter
 				items: #();
 				displayBlock: #asString ].
+			
 	selectedContext
 		ifNotNil: [ textPresenter
 				text: selectedContext sourceCode;
