@@ -628,6 +628,7 @@ SpecProcessBrowser >> initialize [
 	textModel :=  RubScrolledTextModel new interactionModel: self; yourself.
 	startedCPUWatcher := CPUWatcher cpuWatcherEnabled and: [ self startCPUWatcher ].
 	self updateProcessList; processListIndex: 1.
+
 ]
 
 { #category : #initialization }
@@ -677,7 +678,7 @@ SpecProcessBrowser >> initializePresenter [
 { #category : #initialization }
 SpecProcessBrowser >> initializeWidgets [
 	processLabel := self newLabel.
-	processLabel label: 'Process List'.
+	processLabel label: '(Priority) Process List'.
 	
 	stackLabel := self newLabel.
 	stackLabel label: 'Stack List'.
