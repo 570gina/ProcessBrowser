@@ -635,21 +635,20 @@ SpecProcessBrowser >> initialize [
 SpecProcessBrowser >> initializePresenter [
 	processListPresenter
 		whenSelectedItemChanged: [ :item | 
+			self processListIndex: processListPresenter selectedIndex.
 			item
-				ifNotNil: [ self processListIndex: processListPresenter selectedIndex.
-					stackListPresenter
+				ifNotNil: [ stackListPresenter
 						items: self stackList;
 						displayBlock: #asString.
 					textPresenter text: ''.
 					stackListPresenter resetSelection ];
 				ifNil: [ stackListPresenter items: #().
-					textPresenter text: '' ].
-			self processListIndex: processListPresenter selectedIndex ].
+					textPresenter text: '' ] ].
 	stackListPresenter
 		whenSelectedItemChanged: [ :item | 
+			self stackListIndex: stackListPresenter selectedIndex.
 			item
-				ifNotNil: [ self stackListIndex: stackListPresenter selectedIndex.
-					textPresenter
+				ifNotNil: [ textPresenter
 						text: selectedContext sourceCode;
 						behavior: selectedContext methodClass ];
 				ifNil: [ textPresenter text: '' ] ].
@@ -919,18 +918,17 @@ SpecProcessBrowser >> processListPresenter [
 ]
 
 { #category : #'process list' }
-SpecProcessBrowser >> processNameOf: aProcess [
+SpecProcessBrowser >> processNameList [
 	"since processList is a WeakArray, we have to strengthen the result"
-
-	| tally percent |
-	tally := CPUWatcher
-		ifNotNil: [ CPUWatcher current ifNotNil: [ CPUWatcher current tally ] ].
-		
-	percent := tally
-		ifNotNil: [ (((tally occurrencesOf: aProcess) * 100.0 / tally size roundTo: 1)
-				asString padLeftTo: 2) , '% ']
-		ifNil: [ '' ].
-	^ percent , (self prettyNameForProcess: aProcess)
+	| tally |
+	tally := CPUWatcher ifNotNil: [ CPUWatcher current ifNotNil: [ CPUWatcher current tally ] ].
+	^ (processList asOrderedCollection copyWithout: nil)
+		collect: [ :each | 
+			| percent |
+			percent := tally
+				ifNotNil: [ (((tally occurrencesOf: each) * 100.0 / tally size roundTo: 1) asString padLeftTo: 2) , '% ' ]
+				ifNil: [ '' ].
+			percent , (self prettyNameForProcess: each) ]
 ]
 
 { #category : #views }
@@ -1097,6 +1095,7 @@ SpecProcessBrowser >> stackLabel [
 { #category : #accessing }
 SpecProcessBrowser >> stackList [
 	^ stackList
+		ifNil: [#()]
 ]
 
 { #category : #accessing }
@@ -1288,9 +1287,8 @@ SpecProcessBrowser >> updateStackList: depth [
 { #category : #updating }
 SpecProcessBrowser >> updateView [
 	processListPresenter
-		items: processList;
-		setSelectedIndex: processListIndex;
-		displayBlock: [ :process | self processNameOf: process ].
+		items: self processNameList;
+		setSelectedIndex: processListIndex.
 		
 	stackList
 		ifNotNil: [ stackListPresenter
@@ -1307,7 +1305,7 @@ SpecProcessBrowser >> updateView [
 				behavior: selectedContext methodClass ];
 		ifNil: [ textPresenter
 				text: ''.
-				stackListPresenter resetSelection ].
+				stackListPresenter resetSelection ]
 ]
 
 { #category : #'process actions' }
