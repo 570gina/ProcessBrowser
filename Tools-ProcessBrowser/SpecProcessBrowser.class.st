@@ -1293,6 +1293,7 @@ SpecProcessBrowser >> updateView [
 	processListPresenter
 		items: self processNameList;
 		setSelectedIndex: processListIndex.
+		
 	stackList
 		ifNotNil: [ stackListPresenter
 				items: self stackList;
@@ -1301,14 +1302,6 @@ SpecProcessBrowser >> updateView [
 		ifNil: [ stackListPresenter
 				items: #();
 				displayBlock: #asString].
-			
-	selectedContext
-		ifNotNil: [ textPresenter
-				text: selectedContext sourceCode;
-				behavior: selectedContext methodClass ];
-		ifNil: [ textPresenter
-				text: ''.
-				stackListPresenter resetSelection ]
 ]
 
 { #category : #'process actions' }
