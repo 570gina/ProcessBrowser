@@ -37,7 +37,7 @@ SpecProcessBrowserTest >> testRawProcessList [
 
 { #category : #tests }
 SpecProcessBrowserTest >> testUpdateListButtonIsClicked [
-	| newProcess oldProcessListSize semaphore oldProcessList nowProcessList |
+	| newProcess oldProcessListSize semaphore oldProcessList |
 	"Build the list of all the instances of Process"
 	oldProcessList := ui processList.
 	"Store how many processes there are"
@@ -51,8 +51,7 @@ SpecProcessBrowserTest >> testUpdateListButtonIsClicked [
 	semaphore wait.
 	
 	ui updateButton performAction.
-	nowProcessList := Process allSubInstances
-		reject: [ :each | each isTerminated ].
+
 	"Check that the size of this new process list is one greater than the stored value"
 	self assert: ui processList size equals: oldProcessListSize + 1.
 	"Check that the new process list does indeed include the new process we just created"
