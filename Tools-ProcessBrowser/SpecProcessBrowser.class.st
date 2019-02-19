@@ -33,7 +33,7 @@ Class {
 		'SuspendedProcesses',
 		'WellKnownProcesses'
 	],
-	#category : #'Tools-ProcessBrowser'
+	#category : #'Tools-ProcessBrowser-Core'
 }
 
 { #category : #initialization }
@@ -635,13 +635,16 @@ SpecProcessBrowser >> initialize [
 SpecProcessBrowser >> initializePresenter [
 	processListPresenter
 		whenSelectedItemChanged: [ :item | 
+			| oldSelected |
+			oldSelected := selectedProcess.
 			self processListIndex: processListPresenter selectedIndex.
 			item
 				ifNotNil: [ stackListPresenter
 						items: self stackList;
 						displayBlock: #asString.
 					textPresenter text: ''.
-					stackListPresenter resetSelection ];
+					oldSelected = selectedProcess
+						ifFalse: [ stackListPresenter resetSelection ] ];
 				ifNil: [ stackListPresenter items: #().
 					textPresenter text: '' ] ].
 	stackListPresenter
@@ -1290,15 +1293,14 @@ SpecProcessBrowser >> updateView [
 	processListPresenter
 		items: self processNameList;
 		setSelectedIndex: processListIndex.
-		
 	stackList
 		ifNotNil: [ stackListPresenter
 				items: self stackList;
 				setSelectedIndex: stackListIndex;
-				displayBlock: #asString ];
+				displayBlock: #asString];
 		ifNil: [ stackListPresenter
 				items: #();
-				displayBlock: #asString ].
+				displayBlock: #asString].
 			
 	selectedContext
 		ifNotNil: [ textPresenter
