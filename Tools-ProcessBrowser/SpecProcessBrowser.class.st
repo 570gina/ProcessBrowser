@@ -1243,12 +1243,7 @@ SpecProcessBrowser >> updateButton [
 
 { #category : #'process list' }
 SpecProcessBrowser >> updateProcessList [
-	| oldSelectedProcess newIndex now |
-	now := Time millisecondClockValue.
-	now - lastUpdate < 500
-		ifTrue: [ ^ self ].
-	"Don't update too fast"
-	lastUpdate := now.
+	| oldSelectedProcess newIndex |
 	oldSelectedProcess := selectedProcess.
 	processList := selectedProcess := selectedSelector := nil.
 	Smalltalk garbageCollectMost.
