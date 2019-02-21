@@ -57,3 +57,28 @@ SpecProcessBrowserTest >> testUpdateListButtonIsClicked [
 	"Check that the new process list does indeed include the new process we just created"
 	self assert: (ui processList includes: newProcess)
 ]
+
+{ #category : #tests }
+SpecProcessBrowserTest >> testUpdateListButtonIsNotClicked [
+	| newProcess oldProcessListSize semaphore oldProcessList nowProcessList |
+	"Build the list of all the instances of Process"
+	oldProcessList := ui processList.
+	"Store how many processes there are"
+	oldProcessListSize := oldProcessList size.
+
+	"Create a new process that will stay alive"
+	semaphore := Semaphore new.
+	newProcess := [ semaphore signal.
+	Semaphore new wait ] fork.
+	"Wait for the process above to have started, just to be sure"
+	semaphore wait.
+	
+	"The update List Button is not clicked, Process List is not updated."
+	
+	nowProcessList := Process allSubInstances
+		reject: [ :each | each isTerminated ].
+	"Check that the size of this new process list is equal to the stored value"
+	self assert: ui processList size equals: oldProcessListSize.
+	"Check that the new process list does not include the new process we just created"
+	self assert: (ui processList includes: newProcess) equals: false.
+]
