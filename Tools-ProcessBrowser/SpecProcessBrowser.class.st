@@ -634,7 +634,8 @@ SpecProcessBrowser >> initialize [
 { #category : #initialization }
 SpecProcessBrowser >> initializePresenter [
 	processListPresenter
-		whenSelectedItemChanged: [ :item | 
+		whenSelectionChangedDo: [ :selection | 
+			[ :item | 
 			| oldSelected |
 			oldSelected := selectedProcess.
 			self processListIndex: processListPresenter selectedIndex.
@@ -646,15 +647,16 @@ SpecProcessBrowser >> initializePresenter [
 					oldSelected = selectedProcess
 						ifFalse: [ stackListPresenter resetSelection ] ];
 				ifNil: [ stackListPresenter items: #().
-					textPresenter text: '' ] ].
+					textPresenter text: '' ] ] cull: selection selectedItem ].
 	stackListPresenter
-		whenSelectedItemChanged: [ :item | 
+		whenSelectionChangedDo: [ :selection | 
+			[ :item | 
 			self stackListIndex: stackListPresenter selectedIndex.
 			item
 				ifNotNil: [ textPresenter
 						text: selectedContext sourceCode;
 						behavior: selectedContext methodClass ];
-				ifNil: [ textPresenter text: '' ] ].
+				ifNil: [ textPresenter text: '' ] ] cull: selection selectedItem ].
 	autoUpdateButton
 		action: [ self toggleAutoUpdate.
 			self isAutoUpdating
@@ -1287,16 +1289,15 @@ SpecProcessBrowser >> updateStackList: depth [
 SpecProcessBrowser >> updateView [
 	processListPresenter
 		items: self processNameList;
-		setSelectedIndex: processListIndex.
-		
+		selectIndex: processListIndex.
 	stackList
 		ifNotNil: [ stackListPresenter
 				items: self stackList;
-				setSelectedIndex: stackListIndex;
-				displayBlock: #asString];
+				selectedIndex: stackListIndex;
+				displayBlock: #asString ];
 		ifNil: [ stackListPresenter
 				items: #();
-				displayBlock: #asString].
+				displayBlock: #asString ]
 ]
 
 { #category : #'process actions' }
