@@ -638,20 +638,20 @@ SpecProcessBrowser >> initializePresenter [
 			[ :item | 
 			| oldSelected |
 			oldSelected := selectedProcess.
-			self processListIndex: processListPresenter selectedIndex.
+			self processListIndex: processListPresenter selection selectedIndex.
 			item
 				ifNotNil: [ stackListPresenter
 						items: self stackList;
 						displayBlock: #asString.
 					textPresenter text: ''.
 					oldSelected = selectedProcess
-						ifFalse: [ stackListPresenter resetSelection ] ];
+						ifFalse: [ stackListPresenter unselectAll ] ];
 				ifNil: [ stackListPresenter items: #().
 					textPresenter text: '' ] ] cull: selection selectedItem ].
 	stackListPresenter
 		whenSelectionChangedDo: [ :selection | 
 			[ :item | 
-			self stackListIndex: stackListPresenter selectedIndex.
+			self stackListIndex: stackListPresenter selection selectedIndex.
 			item
 				ifNotNil: [ textPresenter
 						text: selectedContext sourceCode;
@@ -1293,7 +1293,7 @@ SpecProcessBrowser >> updateView [
 	stackList
 		ifNotNil: [ stackListPresenter
 				items: self stackList;
-				selectedIndex: stackListIndex;
+				selectIndex: stackListIndex;
 				displayBlock: #asString ];
 		ifNil: [ stackListPresenter
 				items: #();
