@@ -16,18 +16,15 @@ Class {
 		'searchString',
 		'autoUpdateProcess',
 		'deferredMessageRecipient',
-		'lastUpdate',
 		'startedCPUWatcher',
-		'keyEventsDict',
-		'textModel',
 		'processListPresenter',
 		'stackListPresenter',
 		'textPresenter',
 		'autoUpdateButton',
 		'updateButton',
 		'theCPUWatcherButton',
-		'processLabel',
-		'stackLabel'
+		'processMenu',
+		'stackMenu'
 	],
 	#classVars : [
 		'SuspendedProcesses',
@@ -53,21 +50,29 @@ SpecProcessBrowser class >> debugProcess: aProcess [
 
 { #category : #specs }
 SpecProcessBrowser class >> defaultSpec [
-	^ SpecColumnLayout composed
-		newRow: [ :row | 
-			row
-				add: #processLabel;
-				add: #stackLabel ] height: self defaultFont height;
-		newRow: [ :row | 
-			row
-				add: #processListPresenter;
-				add: #stackListPresenter ];
-		newRow: [ :row | 
-			row
-				add: #autoUpdateButton;
-				add: #updateButton;
-				add: #theCPUWatcherButton ] height: self toolbarHeight;
-		add: #textPresenter;
+	^ SpecPanedLayout newVertical
+		add:
+			(SpecPanedLayout newHorizontal
+				add:
+					(SpecBoxLayout newVertical
+						add: '(Priority) Process List'
+							withConstraints: [ :constraints | constraints height: self defaultFont height ];
+						add: #processListPresenter;
+						yourself);
+				add:
+					(SpecBoxLayout newVertical
+						add: 'Stack List'
+							withConstraints: [ :constraints | constraints height: self defaultFont height ];
+						add: #stackListPresenter));
+		add:
+			(SpecBoxLayout newVertical
+				add:
+					(SpecBoxLayout newHorizontal
+						add: #autoUpdateButton;
+						add: #updateButton;
+						add: #theCPUWatcherButton)
+					withConstraints: [ :constraints | constraints height: self toolbarHeight ];
+				add: #textPresenter);
 		yourself
 ]
 
@@ -151,102 +156,65 @@ SpecProcessBrowser class >> menuCommandOn: aBuilder [
 ]
 
 { #category : #menu }
-SpecProcessBrowser class >> menuProcessList: aBuilder [ 
+SpecProcessBrowser class >> menuProcessList: aBuilder [
 	<contextMenu>
 	<processBrowserProcessMenu>
-
 	| target selectedProcess |
-	
 	target := aBuilder model.
 	selectedProcess := target selectedProcess.
-	
 	selectedProcess
-		ifNotNil: [ 
-			| nameAndRules |
+		ifNotNil: [ | nameAndRules |
 			nameAndRules := target nameAndRulesForSelectedProcess.
-			(aBuilder item: #'Inspect')
+			(aBuilder item: #Inspect)
 				keyText: 'i';
 				selector: #inspectProcess.
-			(aBuilder item: #'Explore')
+			(aBuilder item: #Explore)
 				keyText: 'I';
 				selector: #exploreProcess.
 			(aBuilder item: #'Inspect Pointers')
 				keyText: 'P';
 				selector: #inspectPointers.
 			(Smalltalk globals includesKey: #PointerExplorer)
-				ifTrue: [ 
-					(aBuilder item: #'Explore pointers')
+				ifTrue: [ (aBuilder item: #'Explore pointers')
 						keyText: 'e';
 						selector: #explorePointers ].
-					
 			nameAndRules second
-				ifTrue: [ 
-					(aBuilder item: #'Terminate')
+				ifTrue: [ (aBuilder item: #Terminate)
 						keyText: 't';
 						selector: #terminateProcess.
-
 					selectedProcess isSuspended
-						ifTrue: [ 
-							(aBuilder item: #'Resume')
+						ifTrue: [ (aBuilder item: #Resume)
 								keyText: 'r';
 								selector: #resumeProcess ]
-						ifFalse: [ 
-							(aBuilder item: #'Suspend')
+						ifFalse: [ (aBuilder item: #Suspend)
 								keyText: 's';
 								selector: #suspendProcess ] ].
-			
 			nameAndRules third
-				ifTrue: [ 
-					(aBuilder item: #'Change priority')
+				ifTrue: [ (aBuilder item: #'Change priority')
 						keyText: 'p';
 						selector: #changePriority.
-					(aBuilder item: #'Debug')
+					(aBuilder item: #Debug)
 						keyText: 'd';
 						selector: #debugProcess ].
-			
 			(aBuilder item: #'Profile messages')
 				keyText: 'm';
 				selector: #messageTally.
-
 			(selectedProcess suspendingList isKindOf: Semaphore)
-				ifTrue: [ 
-					(aBuilder item: #'Signal Semaphore')
+				ifTrue: [ (aBuilder item: #'Signal Semaphore')
 						keyText: 'S';
 						selector: #signalSemaphore ].
-					
 			(aBuilder item: #'Full stack')
 				keyText: 'k';
 				selector: #moreStack;
 				withSeparatorAfter ].
-
 	(aBuilder item: #'Find context...')
 		keyText: 'f';
 		selector: #findContext.
 	(aBuilder item: #'Find again')
 		keyText: 'g';
 		selector: #nextContext;
-		withSeparatorAfter.
+		withSeparatorAfter
 
-	"(aBuilder item: (target isAutoUpdating
-			ifTrue: [ #'Turn off auto-update' ]
-			ifFalse: [ #'Turn on auto-update' ]))
-		keyText: 'a';
-		selector: #toggleAutoUpdate.
-	(aBuilder item: #'Update list')
-		keyText: 'u';
-		selector: #updateProcessList.
-
-	Smalltalk globals 
-		at: #CPUWatcher 
-		ifPresent: [ :pw | 
-			aBuilder withSeparatorAfter.
-			pw isMonitoring
-				ifTrue: [ 
-					(aBuilder item: #'Stop CPUWatcher')
-						selector: #stopCPUWatcher ]
-				ifFalse: [ 
-					(aBuilder item: #'Start CPUWatcher')
-						selector: #startCPUWatcher ]]."
 ]
 
 { #category : #menu }
@@ -495,12 +463,6 @@ SpecProcessBrowser >> browseContext [
 	Smalltalk tools browser openOnClass: self selectedClass selector: self selectedSelector
 ]
 
-{ #category : #views }
-SpecProcessBrowser >> browsedEnvironment [
-	self flag: #remove.
-	^ Smalltalk globals
-]
-
 { #category : #'process actions' }
 SpecProcessBrowser >> changePriority [
 	| str newPriority nameAndRules |
@@ -533,7 +495,7 @@ SpecProcessBrowser >> changeProcessListSelection: item [
 			textPresenter text: ''.
 			stackListPresenter unselectAll ];
 		ifNil: [ stackListPresenter items: #().
-			textPresenter text: '' ]
+			textPresenter text: '' ].	processListPresenter contextMenu: self processMenu.
 ]
 
 { #category : #'stack list' }
@@ -543,7 +505,7 @@ SpecProcessBrowser >> changeStackListSelection: item [
 		ifNotNil: [ textPresenter
 				text: selectedContext sourceCode;
 				behavior: selectedContext methodClass ];
-		ifNil: [ textPresenter text: '' ]
+		ifNil: [ textPresenter text: '' ].			stackListPresenter contextMenu: self stackMenu
 ]
 
 { #category : #'stack list' }
@@ -627,11 +589,6 @@ SpecProcessBrowser >> exploreReceiver [
 	selectedContext ifNotNil: [ selectedContext receiver inspect ]
 ]
 
-{ #category : #api }
-SpecProcessBrowser >> extent [
-	^1000@600
-]
-
 { #category : #'process list' }
 SpecProcessBrowser >> findContext [
 	| initialProcessIndex initialStackIndex found |
@@ -671,11 +628,11 @@ SpecProcessBrowser >> initialize [
 	self class registerWellKnownProcesses.
 	stackListIndex := 0.
 	searchString := ''.
-	lastUpdate := 0.
-	textModel :=  RubScrolledTextModel new interactionModel: self; yourself.
-	startedCPUWatcher := CPUWatcher cpuWatcherEnabled and: [ self startCPUWatcher ].
-	self updateProcessList; processListIndex: 1.
-
+	startedCPUWatcher := CPUWatcher cpuWatcherEnabled
+		and: [ self startCPUWatcher ].
+	self
+		updateProcessList;
+		processListIndex: 1
 ]
 
 { #category : #initialization }
@@ -684,38 +641,29 @@ SpecProcessBrowser >> initializePresenter [
 		whenSelectionChangedDo:
 			[ :selection | self changeProcessListSelection: selection selectedItem ].
 	stackListPresenter
-		whenSelectionChangedDo: [ :selection | self changeStackListSelection: selection selectedItem ].
+		whenSelectionChangedDo: [ :selection | 
+			self changeStackListSelection: selection selectedItem.
+ ].
 	autoUpdateButton action: [ self autoUpdate ].
 	updateButton action: [ self updateProcessList ].
-	theCPUWatcherButton
-		action: [ self cpuWatcher ]
+	theCPUWatcherButton action: [ self cpuWatcher ]
 ]
 
 { #category : #initialization }
 SpecProcessBrowser >> initializeWidgets [
-	processLabel := self newLabel.
-	processLabel label: '(Priority) Process List'.
-	
-	stackLabel := self newLabel.
-	stackLabel label: 'Stack List'.
-		
 	processListPresenter := self newList.
 	stackListPresenter := self newList.
-	
 	textPresenter := self newCode.
 	textPresenter aboutToStyle: true.
-	
 	autoUpdateButton := self newButton.
 	updateButton := self newButton.
 	theCPUWatcherButton := self newButton.
-	
 	autoUpdateButton
 		label: 'Start auto-update';
 		icon: (self iconNamed: #smallDoIt).
 	updateButton
 		label: 'Update list';
 		icon: (self iconNamed: #smallUpdate).
-		
 	self getCPUWatcherState
 		ifTrue: [ theCPUWatcherButton
 				label: 'Stop CPUWatcher';
@@ -723,17 +671,21 @@ SpecProcessBrowser >> initializeWidgets [
 		ifFalse: [ theCPUWatcherButton
 				label: 'Start CPUWatcher';
 				icon: (self iconNamed: #smallDoIt) ].
-			
 	self focusOrder
 		add: processListPresenter;
 		add: stackListPresenter;
 		add: textPresenter.
-	
 	self deferredMessageRecipient: WorldState.
-	processListPresenter
-		menu: [ :menu :shifted | self processListMenu: menu shifted: shifted ].
-	stackListPresenter
-		menu: [ :menu :shifted | self stackListMenu: menu shifted: shifted ]
+
+]
+
+{ #category : #initialization }
+SpecProcessBrowser >> initializeWindow: aWindowPresenter [
+	| fontWidth rowHeight |
+	fontWidth := StandardFonts defaultFont widthOfString: 'M'.
+	rowHeight := self class inputTextHeight.
+	aWindowPresenter initialExtent: 90 @ 20 * (fontWidth @ rowHeight).
+	aWindowPresenter title: self title
 ]
 
 { #category : #'stack list' }
@@ -770,32 +722,6 @@ SpecProcessBrowser >> isAutoUpdating [
 { #category : #updating }
 SpecProcessBrowser >> isAutoUpdatingPaused [
 	^autoUpdateProcess notNil and: [ autoUpdateProcess isSuspended ]
-]
-
-{ #category : #'process list' }
-SpecProcessBrowser >> keyEventsDict [
-
-	^ keyEventsDict ifNil: [
-		keyEventsDict := Dictionary newFromPairs:  #(
-			$i #inspectProcess
-			$I #exploreProcess
-			$e #explorePointers
-			$P #inspectPointers
-			$t #terminateProcess
-			$r #resumeProcess
-			$s #suspendProcess
-			$d #debugProcess
-			$p #changePriority
-			$m #messageTally
-			$f #findContext
-			$g #nextContext
-			$a #toggleAutoUpdate
-			$u #updateProcessList
-			$S #signalSemaphore
-			$k #moreStack			
-			)
-		]
-
 ]
 
 { #category : #initialization }
@@ -893,11 +819,6 @@ SpecProcessBrowser >> prettyNameForProcess: aProcess [
 ]
 
 { #category : #accessing }
-SpecProcessBrowser >> processLabel [
-	^processLabel
-]
-
-{ #category : #accessing }
 SpecProcessBrowser >> processList [
 	^ processList
 ]
@@ -917,21 +838,16 @@ SpecProcessBrowser >> processListIndex: index [
 	self changed: #processListIndex.
 ]
 
-{ #category : #'process list' }
-SpecProcessBrowser >> processListKey: aKey from: aView [ 
-	self perform: (self keyEventsDict at: aKey ifAbsent: [ ^ self ])
-]
-
-{ #category : #menu }
-SpecProcessBrowser >> processListMenu: aMenu shifted: shifted [
-	selectedProcess ifNil: [ ^ nil ].
-	aMenu addAllFromPragma: 'processBrowserProcessMenu' target: self.
-	^ aMenu
-]
-
 { #category : #accessing }
 SpecProcessBrowser >> processListPresenter [
 	^processListPresenter
+]
+
+{ #category : #menu }
+SpecProcessBrowser >> processMenu [
+	^self newMenu
+				addAllFromPragma: 'processBrowserProcessMenu'
+				target: self.
 ]
 
 { #category : #'process list' }
@@ -1105,11 +1021,6 @@ SpecProcessBrowser >> signalSemaphore [
 ]
 
 { #category : #accessing }
-SpecProcessBrowser >> stackLabel [
-	^stackLabel
-]
-
-{ #category : #accessing }
 SpecProcessBrowser >> stackList [
 	^ stackList
 		ifNil: [#()]
@@ -1141,16 +1052,16 @@ SpecProcessBrowser >> stackListKey: aKey from: aView [
 
 ]
 
-{ #category : #menu }
-SpecProcessBrowser >> stackListMenu: aMenu shifted: shifted [
-	selectedContext ifNil: [ ^ nil ].
-	aMenu addAllFromPragma: 'processBrowserStackMenu' target: self.
-	^ aMenu
-]
-
 { #category : #accessing }
 SpecProcessBrowser >> stackListPresenter [
 	^stackListPresenter
+]
+
+{ #category : #menu }
+SpecProcessBrowser >> stackMenu [
+	^self newMenu
+		addAllFromPragma: 'processBrowserStackMenu'
+		target: self.
 ]
 
 { #category : #'stack list' }

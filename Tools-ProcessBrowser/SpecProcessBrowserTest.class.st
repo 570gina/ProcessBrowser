@@ -2,7 +2,7 @@ Class {
 	#name : #SpecProcessBrowserTest,
 	#superclass : #TestCase,
 	#instVars : [
-		'ui'
+		'browser'
 	],
 	#category : #'Tools-ProcessBrowser-Tests'
 }
@@ -10,7 +10,8 @@ Class {
 { #category : #running }
 SpecProcessBrowserTest >> setUp [
 	"Hooks that subclasses may override to define the fixture of test."
-	ui := SpecProcessBrowser new.
+
+	browser := SpecProcessBrowser new
 ]
 
 { #category : #tests }
@@ -36,10 +37,22 @@ SpecProcessBrowserTest >> testRawProcessList [
 ]
 
 { #category : #tests }
+SpecProcessBrowserTest >> testTheLabelOfTheButtonsSwitchWhenTheButtonIsClicked [
+	|label1 label2|
+	label1 := browser autoUpdateButton label
+		equals: 'Start auto-update'.
+	self
+		assert: browser theCPUWatcherButton label
+		equals: 'Start CPUWatcher'.
+	
+	browser 
+]
+
+{ #category : #tests }
 SpecProcessBrowserTest >> testUpdateListButtonIsClicked [
 	| newProcess oldProcessListSize semaphore oldProcessList |
 	"Build the list of all the instances of Process"
-	oldProcessList := ui processList.
+	oldProcessList := browser processList.
 	"Store how many processes there are"
 	oldProcessListSize := oldProcessList size.
 
@@ -49,20 +62,19 @@ SpecProcessBrowserTest >> testUpdateListButtonIsClicked [
 	Semaphore new wait ] fork.
 	"Wait for the process above to have started, just to be sure"
 	semaphore wait.
-	
-	ui updateButton performAction.
+	browser updateButton performAction.
 
 	"Check that the size of this new process list is one greater than the stored value"
-	self assert: ui processList size equals: oldProcessListSize + 1.
+	self assert: browser processList size equals: oldProcessListSize + 1.
 	"Check that the new process list does indeed include the new process we just created"
-	self assert: (ui processList includes: newProcess)
+	self assert: (browser processList includes: newProcess)
 ]
 
 { #category : #tests }
 SpecProcessBrowserTest >> testUpdateListButtonIsNotClicked [
 	| newProcess oldProcessListSize semaphore oldProcessList nowProcessList |
 	"Build the list of all the instances of Process"
-	oldProcessList := ui processList.
+	oldProcessList := browser processList.
 	"Store how many processes there are"
 	oldProcessListSize := oldProcessList size.
 
@@ -72,13 +84,12 @@ SpecProcessBrowserTest >> testUpdateListButtonIsNotClicked [
 	Semaphore new wait ] fork.
 	"Wait for the process above to have started, just to be sure"
 	semaphore wait.
-	
+
 	"The update List Button is not clicked, Process List is not updated."
-	
 	nowProcessList := Process allSubInstances
 		reject: [ :each | each isTerminated ].
 	"Check that the size of this new process list is equal to the stored value"
-	self assert: ui processList size equals: oldProcessListSize.
+	self assert: browser processList size equals: oldProcessListSize.
 	"Check that the new process list does not include the new process we just created"
-	self assert: (ui processList includes: newProcess) equals: false.
+	self assert: (browser processList includes: newProcess) equals: false
 ]
