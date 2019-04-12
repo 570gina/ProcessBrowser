@@ -472,6 +472,18 @@ SpecProcessBrowser class >> wasProcessSuspendedByProcessBrowser: aProcess [
 	^self suspendedProcesses includesKey: aProcess
 ]
 
+{ #category : #'process actions' }
+SpecProcessBrowser >> autoUpdate [
+self toggleAutoUpdate.
+			self isAutoUpdating
+				ifTrue: [ autoUpdateButton
+						label: 'Stop auto-update';
+						icon: (self iconNamed: #stop) ]
+				ifFalse: [ autoUpdateButton
+						label: 'Start auto-update';
+						icon: (self iconNamed: #smallDoIt) ] 
+]
+
 { #category : #accessing }
 SpecProcessBrowser >> autoUpdateButton [
 	^ autoUpdateButton
@@ -485,7 +497,7 @@ SpecProcessBrowser >> browseContext [
 
 { #category : #views }
 SpecProcessBrowser >> browsedEnvironment [
-
+	self flag: #remove.
 	^ Smalltalk globals
 ]
 
@@ -511,12 +523,47 @@ SpecProcessBrowser >> changePriority [
 	self updateProcessList
 ]
 
-{ #category : #'stack list' }
-SpecProcessBrowser >> changeStackListTo: aCollection [ 
+{ #category : #'process list' }
+SpecProcessBrowser >> changeProcessListSelection: item [
+	self processListIndex: processListPresenter selection selectedIndex.
+	item
+		ifNotNil: [ stackListPresenter
+				items: self stackList;
+				displayBlock: #asString.
+			textPresenter text: ''.
+			stackListPresenter unselectAll ];
+		ifNil: [ stackListPresenter items: #().
+			textPresenter text: '' ]
+]
 
-        stackList := aCollection.
-        self changed: #stackNameList.
-        self stackListIndex: 0.
+{ #category : #'stack list' }
+SpecProcessBrowser >> changeStackListSelection: item [
+	self stackListIndex: stackListPresenter selection selectedIndex.
+	item
+		ifNotNil: [ textPresenter
+				text: selectedContext sourceCode;
+				behavior: selectedContext methodClass ];
+		ifNil: [ textPresenter text: '' ]
+]
+
+{ #category : #'stack list' }
+SpecProcessBrowser >> changeStackListTo: aCollection [
+	stackList := aCollection.
+	self changed: #stackNameList.
+	self stackListIndex: 0
+]
+
+{ #category : #'process actions' }
+SpecProcessBrowser >> cpuWatcher [
+self getCPUWatcherState
+				ifTrue: [ theCPUWatcherButton
+						label: 'Start CPUWatcher';
+						icon: (self iconNamed: #smallDoIt).
+					self stopCPUWatcher ]
+				ifFalse: [ theCPUWatcherButton
+						label: 'Stop CPUWatcher';
+						icon: (self iconNamed: #stop).
+					self startCPUWatcher ]
 ]
 
 { #category : #'process actions' }
@@ -634,49 +681,14 @@ SpecProcessBrowser >> initialize [
 { #category : #initialization }
 SpecProcessBrowser >> initializePresenter [
 	processListPresenter
-		whenSelectionChangedDo: [ :selection | 
-			[ :item | 
-			| oldSelected |
-			oldSelected := selectedProcess.
-			self processListIndex: processListPresenter selection selectedIndex.
-			item
-				ifNotNil: [ stackListPresenter
-						items: self stackList;
-						displayBlock: #asString.
-					textPresenter text: ''.
-					oldSelected = selectedProcess
-						ifFalse: [ stackListPresenter unselectAll ] ];
-				ifNil: [ stackListPresenter items: #().
-					textPresenter text: '' ] ] cull: selection selectedItem ].
+		whenSelectionChangedDo:
+			[ :selection | self changeProcessListSelection: selection selectedItem ].
 	stackListPresenter
-		whenSelectionChangedDo: [ :selection | 
-			[ :item | 
-			self stackListIndex: stackListPresenter selection selectedIndex.
-			item
-				ifNotNil: [ textPresenter
-						text: selectedContext sourceCode;
-						behavior: selectedContext methodClass ];
-				ifNil: [ textPresenter text: '' ] ] cull: selection selectedItem ].
-	autoUpdateButton
-		action: [ self toggleAutoUpdate.
-			self isAutoUpdating
-				ifTrue: [ autoUpdateButton
-						label: 'Stop auto-update';
-						icon: (self iconNamed: #stop) ]
-				ifFalse: [ autoUpdateButton
-						label: 'Start auto-update';
-						icon: (self iconNamed: #smallDoIt) ] ].
+		whenSelectionChangedDo: [ :selection | self changeStackListSelection: selection selectedItem ].
+	autoUpdateButton action: [ self autoUpdate ].
 	updateButton action: [ self updateProcessList ].
 	theCPUWatcherButton
-		action: [ self getCPUWatcherState
-				ifTrue: [ theCPUWatcherButton
-						label: 'Start CPUWatcher';
-						icon: (self iconNamed: #smallDoIt).
-					self stopCPUWatcher ]
-				ifFalse: [ theCPUWatcherButton
-						label: 'Stop CPUWatcher';
-						icon: (self iconNamed: #stop).
-					self startCPUWatcher ] ]
+		action: [ self cpuWatcher ]
 ]
 
 { #category : #initialization }
@@ -1265,24 +1277,21 @@ SpecProcessBrowser >> updateStackList [
 ]
 
 { #category : #'stack list' }
-SpecProcessBrowser >> updateStackList: depth [ 
+SpecProcessBrowser >> updateStackList: depth [
 	| suspendedContext oldHighlight |
 	selectedProcess
-		ifNil: [^ self changeStackListTo: nil].
+		ifNil: [ 
+			^ self changeStackListTo: nil ].
 	(stackList notNil and: [ stackListIndex > 0 ])
-		ifTrue: [oldHighlight := stackList at: stackListIndex].
+		ifTrue: [ oldHighlight := stackList at: stackListIndex ].
 	selectedProcess == Processor activeProcess
-		ifTrue: [self
-				changeStackListTo: (thisContext stackOfSize: depth)]
-		ifFalse: [suspendedContext := selectedProcess suspendedContext.
+		ifTrue: [ self changeStackListTo: (thisContext stackOfSize: depth) ]
+		ifFalse: [ suspendedContext := selectedProcess suspendedContext.
 			suspendedContext
-				ifNil: [self changeStackListTo: nil]
-				ifNotNil: [self
-						changeStackListTo: (suspendedContext stackOfSize: depth)]].
+				ifNil: [ self changeStackListTo: nil ]
+				ifNotNil: [ self changeStackListTo: (suspendedContext stackOfSize: depth) ] ].
 	self
-		stackListIndex: (stackList
-				ifNil: [0]
-				ifNotNil: [stackList indexOf: oldHighlight]).
+		stackListIndex: (stackList ifNil: [ 0 ] ifNotNil: [ stackList indexOf: oldHighlight ])
 ]
 
 { #category : #updating }
@@ -1295,9 +1304,7 @@ SpecProcessBrowser >> updateView [
 				items: self stackList;
 				selectIndex: stackListIndex;
 				displayBlock: #asString ];
-		ifNil: [ stackListPresenter
-				items: #();
-				displayBlock: #asString ]
+		ifNil: [ ^ self changeStackListTo: nil  ]
 ]
 
 { #category : #'process actions' }
