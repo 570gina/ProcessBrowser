@@ -440,18 +440,6 @@ SpecProcessBrowser class >> wasProcessSuspendedByProcessBrowser: aProcess [
 	^self suspendedProcesses includesKey: aProcess
 ]
 
-{ #category : #'process actions' }
-SpecProcessBrowser >> autoUpdate [
-self toggleAutoUpdate.
-			self isAutoUpdating
-				ifTrue: [ autoUpdateButton
-						label: 'Stop auto-update';
-						icon: (self iconNamed: #stop) ]
-				ifFalse: [ autoUpdateButton
-						label: 'Start auto-update';
-						icon: (self iconNamed: #smallDoIt) ] 
-]
-
 { #category : #accessing }
 SpecProcessBrowser >> autoUpdateButton [
 	^ autoUpdateButton
@@ -468,19 +456,18 @@ SpecProcessBrowser >> changePriority [
 	| str newPriority nameAndRules |
 	nameAndRules := self nameAndRulesForSelectedProcess.
 	nameAndRules third
-		ifFalse: [self inform: 'Nope, won''t change priority of ' , nameAndRules first.
-			^ self].
-	str := UIManager default 
-				request: 'New priority' 
-		  initialAnswer: selectedProcess priority asString.
-	str ifNil: [str := String new].
+		ifFalse:
+			[ self inform: 'Nope, won''t change priority of ' , nameAndRules first.
+			^ self ].
+	str := UIManager default
+		request: 'New priority'
+		initialAnswer: selectedProcess priority asString.
+	str isEmptyOrNil
+		ifTrue: [ ^ self ].
 	newPriority := str asNumber asInteger.
-	newPriority
-		ifNil: [^ self].
-	(newPriority < 1
-			or: [newPriority > Processor highestPriority])
-		ifTrue: [self inform: 'Bad priority'.
-			^ self].
+	(newPriority < 1 or: [ newPriority > Processor highestPriority ])
+		ifTrue: [ self inform: 'Bad priority'.
+			^ self ].
 	self class setProcess: selectedProcess toPriority: newPriority.
 	self updateProcessList
 ]
@@ -516,19 +503,6 @@ SpecProcessBrowser >> changeStackListTo: aCollection [
 ]
 
 { #category : #'process actions' }
-SpecProcessBrowser >> cpuWatcher [
-self getCPUWatcherState
-				ifTrue: [ theCPUWatcherButton
-						label: 'Start CPUWatcher';
-						icon: (self iconNamed: #smallDoIt).
-					self stopCPUWatcher ]
-				ifFalse: [ theCPUWatcherButton
-						label: 'Stop CPUWatcher';
-						icon: (self iconNamed: #stop).
-					self startCPUWatcher ]
-]
-
-{ #category : #'process actions' }
 SpecProcessBrowser >> debugProcess [
 	| nameAndRules |
 	nameAndRules := self nameAndRulesForSelectedProcess.
@@ -555,11 +529,9 @@ SpecProcessBrowser >> doItReceiver [
 
 { #category : #shortcuts }
 SpecProcessBrowser >> ensureKeyBindingsFor: aWidget [
-
 	super ensureKeyBindingsFor: aWidget.
-	
 	self registerProcessListShortcuts: processListPresenter.
-	self registerStackListShortcuts: stackListPresenter.
+	self registerStackListShortcuts: stackListPresenter
 ]
 
 { #category : #'stack list' }
@@ -570,13 +542,13 @@ SpecProcessBrowser >> exploreContext [
 { #category : #'process actions' }
 SpecProcessBrowser >> explorePointers [
 	| saved |
-	selectedProcess ifNil: [ ^ self ].
+		selectedProcess ifNil: [ ^ self ].
 	saved := selectedProcess.
 	[ selectedProcess := nil.
 	(Smalltalk tools hasToolNamed: #pointerExplorer)
 		ifTrue: [ Smalltalk tools pointerExplorer openOn: saved ]
 		ifFalse: [ self inspectPointers ] ]
-		     ensure: [ selectedProcess := saved ]
+		ensure: [ selectedProcess := saved ]
 ]
 
 { #category : #'process list' }
@@ -627,7 +599,6 @@ SpecProcessBrowser >> initialize [
 	super initialize.
 	self class registerWellKnownProcesses.
 	stackListIndex := 0.
-	searchString := ''.
 	startedCPUWatcher := CPUWatcher cpuWatcherEnabled
 		and: [ self startCPUWatcher ].
 	self
@@ -641,12 +612,11 @@ SpecProcessBrowser >> initializePresenter [
 		whenSelectionChangedDo:
 			[ :selection | self changeProcessListSelection: selection selectedItem ].
 	stackListPresenter
-		whenSelectionChangedDo: [ :selection | 
-			self changeStackListSelection: selection selectedItem.
- ].
-	autoUpdateButton action: [ self autoUpdate ].
+		whenSelectionChangedDo:
+			[ :selection | self changeStackListSelection: selection selectedItem ].
+	autoUpdateButton action: [ self toggleAutoUpdate ].
 	updateButton action: [ self updateProcessList ].
-	theCPUWatcherButton action: [ self cpuWatcher ]
+	theCPUWatcherButton action: [ self toggleCPUWatcher ]
 ]
 
 { #category : #initialization }
@@ -696,11 +666,16 @@ SpecProcessBrowser >> inspectContext [
 { #category : #'process actions' }
 SpecProcessBrowser >> inspectPointers [
 	| tc pointers |
-	selectedProcess ifNil: [ ^ self ].
+		selectedProcess ifNil: [ ^ self ].
 	tc := thisContext.
-	pointers := selectedProcess pointersToExcept: { self processList. tc. self}.
+	pointers := selectedProcess
+		pointersToExcept:
+			{self processList.
+			tc.
+			self}.
 	pointers ifEmpty: [ ^ self ].
-	pointers inspectWithLabel: 'Objects pointing to ' , selectedProcess browserPrintString
+	pointers
+		inspectWithLabel: 'Objects pointing to ' , selectedProcess browserPrintString
 ]
 
 { #category : #'process list' }
@@ -722,12 +697,6 @@ SpecProcessBrowser >> isAutoUpdating [
 { #category : #updating }
 SpecProcessBrowser >> isAutoUpdatingPaused [
 	^autoUpdateProcess notNil and: [ autoUpdateProcess isSuspended ]
-]
-
-{ #category : #initialization }
-SpecProcessBrowser >> mayBeStartCPUWatcher [
-	startedCPUWatcher ifTrue: [ self setUpdateCallbackAfter: 7 ].
-
 ]
 
 { #category : #'stack list' }
@@ -764,24 +733,24 @@ SpecProcessBrowser >> nameAndRulesForSelectedProcess [
 { #category : #'process list' }
 SpecProcessBrowser >> nextContext [
 	| initialProcessIndex initialStackIndex found |
-	searchString isEmpty ifTrue: [ ^false ].
+	searchString isEmptyOrNil
+		ifTrue: [ ^ false ].
 	initialProcessIndex := self processListIndex.
 	initialStackIndex := self stackListIndex.
 	found := false.
-	initialProcessIndex
-		to: self processList size
-		do: [:pi | found
-				ifFalse: [self processListIndex: pi.
-					self stackNameList
-						withIndexDo: [:name :si | (found not
-									and: [pi ~= initialProcessIndex
-											or: [si > initialStackIndex]])
-								ifTrue: [(name includesSubstring: searchString)
-										ifTrue: [self stackListIndex: si.
-											found := true]]]]].
+	initialProcessIndex to: self processList size do: [ :pi | 
+		found
+			ifFalse: [ self processListIndex: pi.
+				self stackNameList
+					withIndexDo: [ :name :si | 
+						(found not
+							and: [ pi ~= initialProcessIndex or: [ si > initialStackIndex ] ])
+							ifTrue: [ (name includesSubstring: searchString)
+									ifTrue: [ self stackListIndex: si.
+										found := true ] ] ] ] ].
 	found
-		ifFalse: [self processListIndex: initialProcessIndex.
-			self stackListIndex: initialStackIndex].
+		ifFalse: [ self processListIndex: initialProcessIndex.
+			self stackListIndex: initialStackIndex ].
 	^ found
 ]
 
@@ -1073,20 +1042,22 @@ SpecProcessBrowser >> stackNameList [
 
 { #category : #updating }
 SpecProcessBrowser >> startAutoUpdate [
-	self isAutoUpdatingPaused ifTrue: [ ^autoUpdateProcess resume ].
+	self isAutoUpdatingPaused
+		ifTrue: [ ^ autoUpdateProcess resume ].
 	self isAutoUpdating
-		ifFalse: [| delay | 
+		ifFalse: [ | delay |
 			delay := Delay forSeconds: 2.
-			autoUpdateProcess := [[self hasView]
-						whileTrue: [delay wait.
-							deferredMessageRecipient ifNotNil: [
-								deferredMessageRecipient defer: [self updateProcessList]]
-							ifNil: [ self updateProcessList ]].
-					autoUpdateProcess := nil] fork].
+			autoUpdateProcess := [ [ 
+			self hasView ]
+				whileTrue: [ delay wait.
+					deferredMessageRecipient
+						ifNotNil: [ deferredMessageRecipient defer: [ self updateProcessList ] ]
+						ifNil: [ self updateProcessList ] ].
+			autoUpdateProcess := nil ] fork ].
 	self updateProcessList
 ]
 
-{ #category : #initialization }
+{ #category : #action }
 SpecProcessBrowser >> startCPUWatcher [
 	"Answers whether I started the CPUWatcher"
 	CPUWatcher isMonitoring
@@ -1105,7 +1076,7 @@ SpecProcessBrowser >> stopAutoUpdate [
 	self updateProcessList
 ]
 
-{ #category : #initialization }
+{ #category : #action }
 SpecProcessBrowser >> stopCPUWatcher [
 
 	CPUWatcher stopMonitoring.
@@ -1148,7 +1119,7 @@ SpecProcessBrowser >> theCPUWatcherButton [
 	^ theCPUWatcherButton
 ]
 
-{ #category : #api }
+{ #category : #'api-window' }
 SpecProcessBrowser >> title [ 
 	^ 'Process Browser'
 ]
@@ -1156,9 +1127,29 @@ SpecProcessBrowser >> title [
 { #category : #updating }
 SpecProcessBrowser >> toggleAutoUpdate [
 	self isAutoUpdating
-		ifTrue: [ self stopAutoUpdate ]
-		ifFalse: [ self startAutoUpdate ].
+		ifTrue: [ self stopAutoUpdate.autoUpdateButton
+				label: 'Start auto-update';
+				icon: (self iconNamed: #smallDoIt)  ]
+		ifFalse:
+			[ self startAutoUpdate.
+			autoUpdateButton
+				label: 'Stop auto-update';
+				icon: (self iconNamed: #stop) ] 
 
+]
+
+{ #category : #'process actions' }
+SpecProcessBrowser >> toggleCPUWatcher [
+	self getCPUWatcherState
+		ifTrue: [ theCPUWatcherButton
+				label: 'Start CPUWatcher';
+				icon: (self iconNamed: #smallDoIt).
+			self stopCPUWatcher ]
+		ifFalse:
+			[ theCPUWatcherButton
+				label: 'Stop CPUWatcher';
+				icon: (self iconNamed: #stop).
+			self startCPUWatcher ] 
 ]
 
 { #category : #accessing }
@@ -1190,9 +1181,7 @@ SpecProcessBrowser >> updateStackList [
 { #category : #'stack list' }
 SpecProcessBrowser >> updateStackList: depth [
 	| suspendedContext oldHighlight |
-	selectedProcess
-		ifNil: [ 
-			^ self changeStackListTo: nil ].
+	selectedProcess ifNil: [ ^ self changeStackListTo: nil ].
 	(stackList notNil and: [ stackListIndex > 0 ])
 		ifTrue: [ oldHighlight := stackList at: stackListIndex ].
 	selectedProcess == Processor activeProcess
@@ -1223,7 +1212,10 @@ SpecProcessBrowser >> wasProcessSuspendedByProcessBrowser: aProcess [
 	^self class suspendedProcesses includesKey: aProcess
 ]
 
-{ #category : #initialization }
+{ #category : #'api-window' }
 SpecProcessBrowser >> windowIsClosing [
-	startedCPUWatcher ifTrue: [ CPUWatcher stopMonitoring ]
+	startedCPUWatcher
+		ifTrue: [ CPUWatcher stopMonitoring ].
+	self isAutoUpdating
+		ifTrue: [ self stopAutoUpdate ]
 ]
