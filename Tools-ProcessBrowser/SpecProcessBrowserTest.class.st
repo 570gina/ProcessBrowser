@@ -37,18 +37,6 @@ SpecProcessBrowserTest >> testRawProcessList [
 ]
 
 { #category : #tests }
-SpecProcessBrowserTest >> testTheLabelOfTheButtonsSwitchWhenTheButtonIsClicked [
-	|label1 label2|
-	label1 := browser autoUpdateButton label
-		equals: 'Start auto-update'.
-	self
-		assert: browser theCPUWatcherButton label
-		equals: 'Start CPUWatcher'.
-	
-	browser 
-]
-
-{ #category : #tests }
 SpecProcessBrowserTest >> testUpdateListButtonIsClicked [
 	| newProcess oldProcessListSize semaphore oldProcessList |
 	"Build the list of all the instances of Process"

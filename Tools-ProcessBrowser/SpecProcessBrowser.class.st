@@ -435,11 +435,6 @@ SpecProcessBrowser class >> unregisterWellKnownProcess: aProcess [
 	WellKnownProcesses detect: [ :e | e key value == aProcess ] ifFound: [ :entry | WellKnownProcesses remove: entry ]
 ]
 
-{ #category : #'process control' }
-SpecProcessBrowser class >> wasProcessSuspendedByProcessBrowser: aProcess [
-	^self suspendedProcesses includesKey: aProcess
-]
-
 { #category : #accessing }
 SpecProcessBrowser >> autoUpdateButton [
 	^ autoUpdateButton
@@ -517,16 +512,6 @@ SpecProcessBrowser >> deferredMessageRecipient: anObject [
 	deferredMessageRecipient := anObject
 ]
 
-{ #category : #accessing }
-SpecProcessBrowser >> doItContext [
-	^selectedContext
-]
-
-{ #category : #accessing }
-SpecProcessBrowser >> doItReceiver [
-	^selectedContext ifNil: [ selectedProcess ] ifNotNil: [ selectedContext receiver ]
-]
-
 { #category : #shortcuts }
 SpecProcessBrowser >> ensureKeyBindingsFor: aWidget [
 	super ensureKeyBindingsFor: aWidget.
@@ -581,7 +566,7 @@ SpecProcessBrowser >> findContext [
 	^ found
 ]
 
-{ #category : #updating }
+{ #category : #'cpu watcher' }
 SpecProcessBrowser >> getCPUWatcherState [
 	Smalltalk globals
 		at: #CPUWatcher
@@ -589,7 +574,7 @@ SpecProcessBrowser >> getCPUWatcherState [
 			^(pw isMonitoring)]
 ]
 
-{ #category : #views }
+{ #category : #view }
 SpecProcessBrowser >> hasView [
 	^self dependents isEmptyOrNil not
 ]
@@ -689,12 +674,12 @@ SpecProcessBrowser >> inspectReceiver [
 		ifNotNil: [selectedContext receiver inspect]
 ]
 
-{ #category : #updating }
+{ #category : #'update process' }
 SpecProcessBrowser >> isAutoUpdating [
-	^autoUpdateProcess notNil and: [ autoUpdateProcess isSuspended  not ]
+	^ autoUpdateProcess notNil and: [ autoUpdateProcess isSuspended not ]
 ]
 
-{ #category : #updating }
+{ #category : #'update process' }
 SpecProcessBrowser >> isAutoUpdatingPaused [
 	^autoUpdateProcess notNil and: [ autoUpdateProcess isSuspended ]
 ]
@@ -755,31 +740,6 @@ SpecProcessBrowser >> nextContext [
 ]
 
 { #category : #'process list' }
-SpecProcessBrowser >> notify: errorString at: location in: aStream [ 
-	"A syntax error happened when I was trying to highlight my pc. 
-	Raise a signal so that it can be ignored."
-	Warning signal: 'syntax error'
-]
-
-{ #category : #updating }
-SpecProcessBrowser >> pauseAutoUpdate [
-	self isAutoUpdating
-		ifTrue: [ autoUpdateProcess suspend ].
-	self updateProcessList
-]
-
-{ #category : #'stack list' }
-SpecProcessBrowser >> pcRange [
-	"Answer the indices in the source code for the method corresponding to  
-	the selected context's program counter value."
-	(selectedContext isNil or: [textPresenter isEmptyOrNil])
-		ifTrue: [^ 1 to: 0].
-	^selectedContext debuggerMap
-		rangeForPC: (selectedContext pc ifNotNil: [:pc| pc] ifNil: [selectedContext method endPC])
-		contextIsActiveContext: stackListIndex = 1
-]
-
-{ #category : #'process list' }
 SpecProcessBrowser >> prettyNameForProcess: aProcess [ 
 	| nameAndRules |
 	aProcess ifNil: [ ^'<nil>' ].
@@ -823,20 +783,16 @@ SpecProcessBrowser >> processMenu [
 SpecProcessBrowser >> processNameList [
 	"since processList is a WeakArray, we have to strengthen the result"
 	| tally |
-	tally := CPUWatcher ifNotNil: [ CPUWatcher current ifNotNil: [ CPUWatcher current tally ] ].
+	tally := CPUWatcher
+		ifNotNil: [ CPUWatcher current ifNotNil: [ CPUWatcher current tally ] ].
 	^ (processList asOrderedCollection copyWithout: nil)
 		collect: [ :each | 
 			| percent |
 			percent := tally
-				ifNotNil: [ (((tally occurrencesOf: each) * 100.0 / tally size roundTo: 1) asString padLeftTo: 2) , '% ' ]
+				ifNotNil: [ (((tally occurrencesOf: each) * 100.0 / tally size roundTo: 1)
+						asString padLeftTo: 2) , '% ' ]
 				ifNil: [ '' ].
 			percent , (self prettyNameForProcess: each) ]
-]
-
-{ #category : #views }
-SpecProcessBrowser >> refactor [
-
-	^ NautilusRefactoring model: self
 ]
 
 { #category : #shortcuts }
@@ -929,11 +885,6 @@ SpecProcessBrowser >> selectedClass [
 ]
 
 { #category : #accessing }
-SpecProcessBrowser >> selectedClassOrMetaClass [
-	^self doItReceiver class
-]
-
-{ #category : #accessing }
 SpecProcessBrowser >> selectedContext [
 	^selectedContext
 ]
@@ -959,7 +910,7 @@ SpecProcessBrowser >> selectedSelector [
 				ifNotNil: [selectedContext selector]]
 ]
 
-{ #category : #updating }
+{ #category : #'cpu watcher' }
 SpecProcessBrowser >> setUpdateCallbackAfter: seconds [
 	deferredMessageRecipient
 		ifNotNil: [ 
@@ -968,15 +919,6 @@ SpecProcessBrowser >> setUpdateCallbackAfter: seconds [
 			[ d wait.
 			d := nil. 
 			deferredMessageRecipient defer: [ self updateProcessList ] ] fork ]
-]
-
-{ #category : #updating }
-SpecProcessBrowser >> shoutAboutToStyle: aPluggableShoutMorphOrView [
-
-	selectedContext ifNil: [^false].
-	aPluggableShoutMorphOrView classOrMetaClass: self selectedClass.
-	^ true
-
 ]
 
 { #category : #'process actions' }
@@ -1010,17 +952,6 @@ SpecProcessBrowser >> stackListIndex: index [
 	selectedSelector := nil.
 ]
 
-{ #category : #views }
-SpecProcessBrowser >> stackListKey: aKey from: aView [ 
-	aKey = $c ifTrue: [ self inspectContext].
-	aKey = $C ifTrue: [ self exploreContext].
-	aKey = $i ifTrue: [ self inspectReceiver].
-	aKey = $I ifTrue: [ self exploreReceiver].
-	aKey = $b ifTrue: [ self browseContext].
-
-
-]
-
 { #category : #accessing }
 SpecProcessBrowser >> stackListPresenter [
 	^stackListPresenter
@@ -1040,7 +971,7 @@ SpecProcessBrowser >> stackNameList [
 		ifNotNil: [stackList collect: [:each | each asString]]
 ]
 
-{ #category : #updating }
+{ #category : #'update process' }
 SpecProcessBrowser >> startAutoUpdate [
 	self isAutoUpdatingPaused
 		ifTrue: [ ^ autoUpdateProcess resume ].
@@ -1057,7 +988,7 @@ SpecProcessBrowser >> startAutoUpdate [
 	self updateProcessList
 ]
 
-{ #category : #action }
+{ #category : #'cpu watcher' }
 SpecProcessBrowser >> startCPUWatcher [
 	"Answers whether I started the CPUWatcher"
 	CPUWatcher isMonitoring
@@ -1068,7 +999,7 @@ SpecProcessBrowser >> startCPUWatcher [
 					^ true ]
 ]
 
-{ #category : #updating }
+{ #category : #'update process' }
 SpecProcessBrowser >> stopAutoUpdate [
 	autoUpdateProcess ifNotNil: [
 		autoUpdateProcess terminate.
@@ -1076,7 +1007,7 @@ SpecProcessBrowser >> stopAutoUpdate [
 	self updateProcessList
 ]
 
-{ #category : #action }
+{ #category : #'cpu watcher' }
 SpecProcessBrowser >> stopCPUWatcher [
 
 	CPUWatcher stopMonitoring.
@@ -1124,32 +1055,31 @@ SpecProcessBrowser >> title [
 	^ 'Process Browser'
 ]
 
-{ #category : #updating }
+{ #category : #'update process' }
 SpecProcessBrowser >> toggleAutoUpdate [
+
 	self isAutoUpdating
-		ifTrue: [ self stopAutoUpdate.autoUpdateButton
+		ifTrue: [ self stopAutoUpdate.
+			autoUpdateButton
 				label: 'Start auto-update';
-				icon: (self iconNamed: #smallDoIt)  ]
-		ifFalse:
-			[ self startAutoUpdate.
+				icon: (self iconNamed: #smallDoIt) ]
+		ifFalse: [ self startAutoUpdate.
 			autoUpdateButton
 				label: 'Stop auto-update';
-				icon: (self iconNamed: #stop) ] 
-
+				icon: (self iconNamed: #stop) ]
 ]
 
-{ #category : #'process actions' }
+{ #category : #'cpu watcher' }
 SpecProcessBrowser >> toggleCPUWatcher [
 	self getCPUWatcherState
 		ifTrue: [ theCPUWatcherButton
 				label: 'Start CPUWatcher';
 				icon: (self iconNamed: #smallDoIt).
 			self stopCPUWatcher ]
-		ifFalse:
-			[ theCPUWatcherButton
+		ifFalse: [ theCPUWatcherButton
 				label: 'Stop CPUWatcher';
 				icon: (self iconNamed: #stop).
-			self startCPUWatcher ] 
+			self startCPUWatcher ]
 ]
 
 { #category : #accessing }
@@ -1169,8 +1099,8 @@ SpecProcessBrowser >> updateProcessList [
 	processList := processList sort: [ :a :b | a priority >= b priority ].
 	processList := WeakArray withAll: processList.
 	newIndex := processList indexOf: oldSelectedProcess ifAbsent: [ 0 ].
-	self processListIndex: newIndex.
-	self updateView
+		self processListIndex: newIndex.
+			self updateView.
 ]
 
 { #category : #'stack list' }
@@ -1194,7 +1124,7 @@ SpecProcessBrowser >> updateStackList: depth [
 		stackListIndex: (stackList ifNil: [ 0 ] ifNotNil: [ stackList indexOf: oldHighlight ])
 ]
 
-{ #category : #updating }
+{ #category : #view }
 SpecProcessBrowser >> updateView [
 	processListPresenter
 		items: self processNameList;
@@ -1205,11 +1135,6 @@ SpecProcessBrowser >> updateView [
 				selectIndex: stackListIndex;
 				displayBlock: #asString ];
 		ifNil: [ ^ self changeStackListTo: nil  ]
-]
-
-{ #category : #'process actions' }
-SpecProcessBrowser >> wasProcessSuspendedByProcessBrowser: aProcess [
-	^self class suspendedProcesses includesKey: aProcess
 ]
 
 { #category : #'api-window' }
