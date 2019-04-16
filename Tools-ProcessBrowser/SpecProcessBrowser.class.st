@@ -5,12 +5,9 @@ Class {
 	#name : #SpecProcessBrowser,
 	#superclass : #ComposablePresenter,
 	#instVars : [
-		'selectedProcess',
-		'selectedContext',
 		'processList',
-		'processListIndex',
 		'stackList',
-		'stackListIndex',
+		'selectedProcess',
 		'selectedClass',
 		'selectedSelector',
 		'searchString',
@@ -22,9 +19,7 @@ Class {
 		'textPresenter',
 		'autoUpdateButton',
 		'updateButton',
-		'theCPUWatcherButton',
-		'processMenu',
-		'stackMenu'
+		'theCPUWatcherButton'
 	],
 	#classVars : [
 		'SuspendedProcesses',
@@ -440,8 +435,15 @@ SpecProcessBrowser >> autoUpdateButton [
 
 { #category : #'stack list' }
 SpecProcessBrowser >> browseContext [
-	selectedContext ifNil: [ ^ self ]. 
+	stackListPresenter selection selectedItem 
+ ifNil: [ ^ self ]. 
 	Smalltalk tools browser openOnClass: self selectedClass selector: self selectedSelector
+]
+
+{ #category : #view }
+SpecProcessBrowser >> browsedEnvironment [
+	self flag: #remove.
+	^ Smalltalk globals
 ]
 
 { #category : #'process actions' }
@@ -467,7 +469,9 @@ SpecProcessBrowser >> changePriority [
 
 { #category : #'process list' }
 SpecProcessBrowser >> changeProcessListSelection: item [
-	self processListIndex: processListPresenter selection selectedIndex.
+	selectedProcess := processList
+		at: processListPresenter selection selectedIndex.
+	self updateStackList.
 	item
 		ifNotNil: [ stackListPresenter
 				items: self stackList;
@@ -475,24 +479,18 @@ SpecProcessBrowser >> changeProcessListSelection: item [
 			textPresenter text: ''.
 			stackListPresenter unselectAll ];
 		ifNil: [ stackListPresenter items: #().
-			textPresenter text: '' ].	processListPresenter contextMenu: self processMenu.
+			textPresenter text: '' ].
+	processListPresenter contextMenu: self processMenu
 ]
 
 { #category : #'stack list' }
 SpecProcessBrowser >> changeStackListSelection: item [
-	self stackListIndex: stackListPresenter selection selectedIndex.
 	item
 		ifNotNil: [ textPresenter
-				text: selectedContext sourceCode;
-				behavior: selectedContext methodClass ];
-		ifNil: [ textPresenter text: '' ].			stackListPresenter contextMenu: self stackMenu
-]
-
-{ #category : #'stack list' }
-SpecProcessBrowser >> changeStackListTo: aCollection [
-	stackList := aCollection.
-	self changed: #stackNameList.
-	self stackListIndex: 0
+				text: stackListPresenter selection selectedItem sourceCode;
+				behavior: stackListPresenter selection selectedItem methodClass ];
+		ifNil: [ textPresenter text: '' ].
+	stackListPresenter contextMenu: self stackMenu
 ]
 
 { #category : #'process actions' }
@@ -510,6 +508,20 @@ SpecProcessBrowser >> deferredMessageRecipient: anObject [
 	deferredMessageRecipient := anObject
 ]
 
+{ #category : #accessing }
+SpecProcessBrowser >> doItContext [
+	self flag: #remove.
+	^ stackListPresenter selection selectedItem
+]
+
+{ #category : #accessing }
+SpecProcessBrowser >> doItReceiver [
+	self flag: #remove.
+	^ stackListPresenter selection selectedItem
+		ifNil: [ selectedProcess ]
+		ifNotNil: [ stackListPresenter selection selectedItem receiver ]
+]
+
 { #category : #shortcuts }
 SpecProcessBrowser >> ensureKeyBindingsFor: aWidget [
 	super ensureKeyBindingsFor: aWidget.
@@ -519,7 +531,7 @@ SpecProcessBrowser >> ensureKeyBindingsFor: aWidget [
 
 { #category : #'stack list' }
 SpecProcessBrowser >> exploreContext [
-	selectedContext inspect
+	stackListPresenter selection selectedItem inspect
 ]
 
 { #category : #'process actions' }
@@ -541,24 +553,23 @@ SpecProcessBrowser >> exploreProcess [
 
 { #category : #'stack list' }
 SpecProcessBrowser >> exploreReceiver [
-	selectedContext ifNotNil: [ selectedContext receiver inspect ]
+	stackListPresenter selection selectedItem ifNotNil: [ stackListPresenter selection selectedItem receiver inspect ]
 ]
 
 { #category : #'process list' }
 SpecProcessBrowser >> findContext [
 	| initialProcessIndex initialStackIndex found |
-	initialProcessIndex := self processListIndex.
-	initialStackIndex := self stackListIndex.
+	initialProcessIndex := processListPresenter selection selectedIndex.
+	initialStackIndex := stackListPresenter selection selectedIndex.
 	searchString := UIManager default
 		request: 'Enter a string to search for in the process stack lists'
 		initialAnswer: searchString.
 	searchString isEmptyOrNil
 		ifTrue: [ ^ false ].
-	self processListIndex: 1.
-	self stackListIndex: 1.
+	processListPresenter selectIndex: 1.
+	stackListPresenter selectIndex: 1.
 	found := self nextContext.
-
-			found
+	found
 		ifFalse: [ processListPresenter selectIndex: initialProcessIndex.
 			stackListPresenter selectIndex: initialStackIndex ].
 	^ found
@@ -581,12 +592,9 @@ SpecProcessBrowser >> hasView [
 SpecProcessBrowser >> initialize [
 	super initialize.
 	self class registerWellKnownProcesses.
-	stackListIndex := 0.
 	startedCPUWatcher := CPUWatcher cpuWatcherEnabled
 		and: [ self startCPUWatcher ].
-	self
-		updateProcessList;
-		processListIndex: 1
+	self updateProcessList
 ]
 
 { #category : #initialization }
@@ -595,8 +603,8 @@ SpecProcessBrowser >> initializePresenter [
 		whenSelectionChangedDo:
 			[ :selection | self changeProcessListSelection: selection selectedItem ].
 	stackListPresenter
-		whenSelectionChangedDo:
-			[ :selection | self changeStackListSelection: selection selectedItem ].
+		whenSelectionChangedDo: [ :selection | 
+			self changeStackListSelection: selection selectedItem ].
 	autoUpdateButton action: [ self toggleAutoUpdate ].
 	updateButton action: [ self updateProcessList ].
 	theCPUWatcherButton action: [ self toggleCPUWatcher ]
@@ -643,7 +651,7 @@ SpecProcessBrowser >> initializeWindow: aWindowPresenter [
 
 { #category : #'stack list' }
 SpecProcessBrowser >> inspectContext [
-	selectedContext inspect
+	stackListPresenter selection selectedItem inspect
 ]
 
 { #category : #'process actions' }
@@ -668,8 +676,7 @@ SpecProcessBrowser >> inspectProcess [
 
 { #category : #'stack list' }
 SpecProcessBrowser >> inspectReceiver [
-	selectedContext
-		ifNotNil: [selectedContext receiver inspect]
+	stackListPresenter selection selectedItem ifNotNil: [ stackListPresenter selection selectedItem receiver inspect ]
 ]
 
 { #category : #'update process' }
@@ -718,27 +725,32 @@ SpecProcessBrowser >> nextContext [
 	| initialProcessIndex initialStackIndex found |
 	searchString isEmptyOrNil
 		ifTrue: [ ^ false ].
-	initialProcessIndex := self processListIndex.
-	initialStackIndex := self stackListIndex.
+	initialProcessIndex := processListPresenter selection selectedIndex.
+	initialStackIndex := stackListPresenter selection selectedIndex.
 	found := false.
 	initialProcessIndex to: self processList size do: [ :pi | 
 		found
-			ifFalse: [ self processListIndex: pi.
-				self stackNameList
+			ifFalse: [ processListPresenter selectIndex: pi.
+				self stackList
 					withIndexDo: [ :name :si | 
 						(found not
 							and: [ pi ~= initialProcessIndex or: [ si > initialStackIndex ] ])
-							ifTrue: [ (name includesSubstring: searchString)
-									ifTrue: [ self stackListIndex: si.
+							ifTrue: [ (name asString includesSubstring: searchString)
+									ifTrue: [ stackListPresenter selectIndex: si.
 										found := true ] ] ] ] ].
 	found
 		ifFalse: [ processListPresenter selectIndex: initialProcessIndex.
 			stackListPresenter selectIndex: initialStackIndex ].
-		
-				initialStackIndex := stackListIndex.
-			processListPresenter selectIndex: processListIndex.
-			stackListPresenter selectIndex: initialStackIndex.
 	^ found
+]
+
+{ #category : #'process list' }
+SpecProcessBrowser >> notify: errorString at: location in: aStream [
+	"A syntax error happened when I was trying to highlight my pc. 
+	Raise a signal so that it can be ignored."
+	self flag: #remove.
+
+	Warning signal: 'syntax error'
 ]
 
 { #category : #'process list' }
@@ -752,21 +764,6 @@ SpecProcessBrowser >> prettyNameForProcess: aProcess [
 { #category : #accessing }
 SpecProcessBrowser >> processList [
 	^ processList
-]
-
-{ #category : #accessing }
-SpecProcessBrowser >> processListIndex [
-	^ processListIndex
-]
-
-{ #category : #accessing }
-SpecProcessBrowser >> processListIndex: index [ 
-	processListIndex := index.
-	selectedProcess := processList
-				at: index
-				ifAbsent: [].
-	self updateStackList.
-	self changed: #processListIndex.
 ]
 
 { #category : #accessing }
@@ -795,6 +792,12 @@ SpecProcessBrowser >> processNameList [
 						asString padLeftTo: 2) , '% ' ]
 				ifNil: [ '' ].
 			percent , (self prettyNameForProcess: each) ]
+]
+
+{ #category : #view }
+SpecProcessBrowser >> refactor [
+	self flag: #remove.
+	^ NautilusRefactoring model: self
 ]
 
 { #category : #shortcuts }
@@ -840,32 +843,26 @@ SpecProcessBrowser >> registerProcessListShortcuts: aWidget [
 		toAction: [ selectedProcess ifNotNil: [ self findContext ] ].
 	aWidget
 		bindKeyCombination: $g meta
-		toAction: [ selectedProcess ifNotNil: [ self nextContext ] ].
-	"aWidget
-		bindKeyCombination: $a meta
-		toAction: [ selectedProcess ifNotNil: [ self toggleAutoUpdate ] ].
-	aWidget
-		bindKeyCombination: $u meta
-		toAction: [ selectedProcess ifNotNil: [ self updateProcessList ] ]."
+		toAction: [ selectedProcess ifNotNil: [ self nextContext ] ]
 ]
 
 { #category : #shortcuts }
 SpecProcessBrowser >> registerStackListShortcuts: aWidget [
 	aWidget
 		bindKeyCombination: $c meta
-		toAction: [ selectedContext ifNotNil: [ self inspectContext ] ].
+		toAction: [ stackListPresenter selection selectedItem ifNotNil: [ self inspectContext ] ].
 	aWidget
 		bindKeyCombination: $C meta
-		toAction: [ selectedContext ifNotNil: [ self exploreContext ] ].
+		toAction: [ stackListPresenter selection selectedItem  ifNotNil: [ self exploreContext ] ].
 	aWidget
 		bindKeyCombination: $i meta
-		toAction: [ selectedContext ifNotNil: [ self inspectReceiver ] ].
+		toAction: [ stackListPresenter selection selectedItem  ifNotNil: [ self inspectReceiver ] ].
 	aWidget
 		bindKeyCombination: $I meta
-		toAction: [ selectedContext ifNotNil: [ self exploreReceiver ] ].
+		toAction: [ stackListPresenter selection selectedItem  ifNotNil: [ self exploreReceiver ] ].
 	aWidget
 		bindKeyCombination: $b meta
-		toAction: [ selectedContext ifNotNil: [ self browseContext ] ]
+		toAction: [ stackListPresenter selection selectedItem  ifNotNil: [ self browseContext ] ]
 ]
 
 { #category : #'process actions' }
@@ -879,21 +876,28 @@ SpecProcessBrowser >> resumeProcess [
 { #category : #accessing }
 SpecProcessBrowser >> selectedClass [
 	"Answer the class in which the currently selected context's method was  found."
+
 	^ selectedClass
-		ifNil: [ selectedClass := selectedContext receiver
-				ifNil: [ selectedSelector := selectedContext method selector.
-					   selectedContext method methodClass ]
-				ifNotNil: [ selectedContext methodClass ]]
+		ifNil: [ selectedClass := stackListPresenter selection selectedItem  receiver
+				ifNil: [ selectedSelector := stackListPresenter selection selectedItem  method selector.
+					stackListPresenter selection selectedItem  method methodClass ]
+				ifNotNil: [ stackListPresenter selection selectedItem  methodClass ] ]
+]
+
+{ #category : #accessing }
+SpecProcessBrowser >> selectedClassOrMetaClass [
+	self flag: #remove.
+	^ self doItReceiver class
 ]
 
 { #category : #accessing }
 SpecProcessBrowser >> selectedContext [
-	^selectedContext
+	^ stackListPresenter selection selectedItem 
 ]
 
 { #category : #accessing }
 SpecProcessBrowser >> selectedMethod [
-	^ selectedContext ifNotNil: [ selectedContext method ]
+	^ stackListPresenter selection selectedItem  ifNotNil: [ stackListPresenter selection selectedItem  method ]
 ]
 
 { #category : #accessing }
@@ -905,11 +909,12 @@ SpecProcessBrowser >> selectedProcess [
 SpecProcessBrowser >> selectedSelector [
 	"Answer the class in which the currently selected context's method was  
 	found."
+
 	^ selectedSelector
-		ifNil: [selectedSelector := selectedContext receiver
-				ifNil: [selectedClass := selectedContext method methodClass
-					   selectedContext method selector]
-				ifNotNil: [selectedContext selector]]
+		ifNil: [ selectedSelector := stackListPresenter selection selectedItem  receiver
+				ifNil: [ selectedClass := stackListPresenter selection selectedItem  method methodClass selectedContext
+						method selector ]
+				ifNotNil: [ stackListPresenter selection selectedItem  selector ] ]
 ]
 
 { #category : #'cpu watcher' }
@@ -921,6 +926,14 @@ SpecProcessBrowser >> setUpdateCallbackAfter: seconds [
 			[ d wait.
 			d := nil. 
 			deferredMessageRecipient defer: [ self updateProcessList ] ] fork ]
+]
+
+{ #category : #view }
+SpecProcessBrowser >> shoutAboutToStyle: aPluggableShoutMorphOrView [
+	self flag: #remove.
+	stackListPresenter selection selectedItem  ifNil: [ ^ false ].
+	aPluggableShoutMorphOrView classOrMetaClass: self selectedClass.
+	^ true
 ]
 
 { #category : #'process actions' }
@@ -940,21 +953,6 @@ SpecProcessBrowser >> stackList [
 ]
 
 { #category : #accessing }
-SpecProcessBrowser >> stackListIndex [
-	^ stackListIndex
-]
-
-{ #category : #accessing }
-SpecProcessBrowser >> stackListIndex: index [ 
-	stackListIndex := index.
-	selectedContext := (stackList notNil
-						and: [index > 0]) ifTrue:
-							[stackList at: index ifAbsent: []].
-	selectedClass := nil.
-	selectedSelector := nil.
-]
-
-{ #category : #accessing }
 SpecProcessBrowser >> stackListPresenter [
 	^stackListPresenter
 ]
@@ -964,13 +962,6 @@ SpecProcessBrowser >> stackMenu [
 	^self newMenu
 		addAllFromPragma: 'processBrowserStackMenu'
 		target: self.
-]
-
-{ #category : #'stack list' }
-SpecProcessBrowser >> stackNameList [
-	^ stackList
-		ifNil: [#()]
-		ifNotNil: [stackList collect: [:each | each asString]]
 ]
 
 { #category : #'update process' }
@@ -1045,6 +1036,12 @@ SpecProcessBrowser >> terminateProcess [
 ]
 
 { #category : #accessing }
+SpecProcessBrowser >> text [
+	self flag: #remove.
+	^ stackListPresenter selection selectedItem sourceCode
+]
+
+{ #category : #accessing }
 SpecProcessBrowser >> textPresenter [
 	^textPresenter
 
@@ -1103,9 +1100,17 @@ SpecProcessBrowser >> updateProcessList [
 		reject: [ :each | each isTerminated ].
 	processList := processList sort: [ :a :b | a priority >= b priority ].
 	processList := WeakArray withAll: processList.
-	newIndex := processList indexOf: oldSelectedProcess ifAbsent: [ 0 ].
-		self processListIndex: newIndex.
-			self updateView.
+	newIndex := processList indexOf: oldSelectedProcess ifAbsent: [ 1 ].
+	self updateProcessListPresenter: newIndex.
+	self updateStackList
+]
+
+{ #category : #'update presenter' }
+SpecProcessBrowser >> updateProcessListPresenter: index [
+	selectedProcess := processList at: index.
+	processListPresenter
+		items: self processNameList;
+		selectIndex: index
 ]
 
 { #category : #'stack list' }
@@ -1115,31 +1120,33 @@ SpecProcessBrowser >> updateStackList [
 
 { #category : #'stack list' }
 SpecProcessBrowser >> updateStackList: depth [
-	| suspendedContext oldHighlight |
-	selectedProcess ifNil: [ ^ self changeStackListTo: nil ].
-	(stackList notNil and: [ stackListIndex > 0 ])
-		ifTrue: [ oldHighlight := stackList at: stackListIndex ].
+	| suspendedContext oldHighlight index |
+	processListPresenter selection selectedItem
+		ifNil: [ stackList := nil.
+			^ self ].
+	stackList
+		ifNotNil: [ oldHighlight := stackListPresenter selection selectedItem ].
 	selectedProcess == Processor activeProcess
-		ifTrue: [ self changeStackListTo: (thisContext stackOfSize: depth) ]
+		ifTrue: [ stackList := thisContext stackOfSize: depth ]
 		ifFalse: [ suspendedContext := selectedProcess suspendedContext.
 			suspendedContext
-				ifNil: [ self changeStackListTo: nil ]
-				ifNotNil: [ self changeStackListTo: (suspendedContext stackOfSize: depth) ] ].
-	self
-		stackListIndex: (stackList ifNil: [ 0 ] ifNotNil: [ stackList indexOf: oldHighlight ])
+				ifNil: [ stackList := nil ]
+				ifNotNil: [stackList:= (suspendedContext stackOfSize: depth) ] ].
+	index := stackList
+		ifNil: [ 0 ]
+		ifNotNil: [ stackList indexOf: oldHighlight ].
+	selectedClass := nil.
+	selectedSelector := nil.
+	self updateStackListPresenter: index
 ]
 
-{ #category : #view }
-SpecProcessBrowser >> updateView [
-	processListPresenter
-		items: self processNameList;
-		selectIndex: processListIndex.
+{ #category : #'update presenter' }
+SpecProcessBrowser >> updateStackListPresenter: index [
 	stackList
 		ifNotNil: [ stackListPresenter
 				items: self stackList;
-				selectIndex: stackListIndex;
-				displayBlock: #asString ];
-		ifNil: [ ^ self changeStackListTo: nil  ]
+				selectIndex: index;
+				displayBlock: #asString ]
 ]
 
 { #category : #'api-window' }
