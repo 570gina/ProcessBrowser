@@ -679,12 +679,12 @@ SpecProcessBrowser >> inspectReceiver [
 	stackListPresenter selection selectedItem ifNotNil: [ stackListPresenter selection selectedItem receiver inspect ]
 ]
 
-{ #category : #'update process' }
+{ #category : #'auto update' }
 SpecProcessBrowser >> isAutoUpdating [
 	^ autoUpdateProcess notNil and: [ autoUpdateProcess isSuspended not ]
 ]
 
-{ #category : #'update process' }
+{ #category : #'auto update' }
 SpecProcessBrowser >> isAutoUpdatingPaused [
 	^autoUpdateProcess notNil and: [ autoUpdateProcess isSuspended ]
 ]
@@ -964,7 +964,7 @@ SpecProcessBrowser >> stackMenu [
 		target: self.
 ]
 
-{ #category : #'update process' }
+{ #category : #'auto update' }
 SpecProcessBrowser >> startAutoUpdate [
 	self isAutoUpdatingPaused
 		ifTrue: [ ^ autoUpdateProcess resume ].
@@ -992,7 +992,7 @@ SpecProcessBrowser >> startCPUWatcher [
 					^ true ]
 ]
 
-{ #category : #'update process' }
+{ #category : #'auto update' }
 SpecProcessBrowser >> stopAutoUpdate [
 	autoUpdateProcess ifNotNil: [
 		autoUpdateProcess terminate.
@@ -1057,7 +1057,7 @@ SpecProcessBrowser >> title [
 	^ 'Process Browser'
 ]
 
-{ #category : #'update process' }
+{ #category : #'auto update' }
 SpecProcessBrowser >> toggleAutoUpdate [
 
 	self isAutoUpdating
