@@ -244,15 +244,17 @@ SpecProcessBrowser class >> menuStackList: aBuilder [
 ]
 
 { #category : #'process control' }
-SpecProcessBrowser class >> nameAndRulesFor: aProcess [ 
+SpecProcessBrowser class >> nameAndRulesFor: aProcess [
 	"Answer a nickname and two flags: allow-stop, and allow-debug"
+
 	| rules |
-	rules := {nil. true. true}.
-	WellKnownProcesses do: [:blockAndRules |
-		blockAndRules key value == aProcess 
-			ifTrue: [ rules := blockAndRules value value ]].
-	rules first ifNil: [ 
-		rules at: 1 put: aProcess suspendedContext asString ].
+	rules := {nil . true . true}.
+	WellKnownProcesses
+		do: [ :blockAndRules | 
+			blockAndRules key value == aProcess
+				ifTrue: [ rules := blockAndRules value value ] ].
+	rules first
+		ifNil: [ rules at: 1 put: aProcess suspendedContext asString ].
 	^ rules
 ]
 
@@ -411,13 +413,9 @@ SpecProcessBrowser class >> taskbarIconName [
 
 { #category : #'process control' }
 SpecProcessBrowser class >> terminateProcess: aProcess [
-	aProcess ifNotNil: [
-		self suspendedProcesses
-			removeKey: aProcess
-			ifAbsent: [].
-		aProcess terminate
-	].
-
+	aProcess
+		ifNotNil: [ self suspendedProcesses removeKey: aProcess ifAbsent: [  ].
+			aProcess terminate ]
 ]
 
 { #category : #theme }
@@ -551,18 +549,18 @@ SpecProcessBrowser >> findContext [
 	| initialProcessIndex initialStackIndex found |
 	initialProcessIndex := self processListIndex.
 	initialStackIndex := self stackListIndex.
-	searchString := UIManager default 
-			request: 'Enter a string to search for in the process stack lists'
-	  initialAnswer: searchString.
+	searchString := UIManager default
+		request: 'Enter a string to search for in the process stack lists'
+		initialAnswer: searchString.
 	searchString isEmptyOrNil
-		ifTrue: [^ false].
+		ifTrue: [ ^ false ].
 	self processListIndex: 1.
 	self stackListIndex: 1.
 	found := self nextContext.
-	found
-		ifFalse: [self processListIndex: initialProcessIndex.
-			self stackListIndex: initialStackIndex].
-	self updateView.
+
+			found
+		ifFalse: [ processListPresenter selectIndex: initialProcessIndex.
+			stackListPresenter selectIndex: initialStackIndex ].
 	^ found
 ]
 
@@ -734,8 +732,12 @@ SpecProcessBrowser >> nextContext [
 									ifTrue: [ self stackListIndex: si.
 										found := true ] ] ] ] ].
 	found
-		ifFalse: [ self processListIndex: initialProcessIndex.
-			self stackListIndex: initialStackIndex ].
+		ifFalse: [ processListPresenter selectIndex: initialProcessIndex.
+			stackListPresenter selectIndex: initialStackIndex ].
+		
+				initialStackIndex := stackListIndex.
+			processListPresenter selectIndex: processListIndex.
+			stackListPresenter selectIndex: initialStackIndex.
 	^ found
 ]
 
@@ -891,7 +893,7 @@ SpecProcessBrowser >> selectedContext [
 
 { #category : #accessing }
 SpecProcessBrowser >> selectedMethod [
-	^selectedContext ifNotNil: [ selectedContext method ]
+	^ selectedContext ifNotNil: [ selectedContext method ]
 ]
 
 { #category : #accessing }
@@ -1032,11 +1034,14 @@ SpecProcessBrowser >> suspendProcess [
 SpecProcessBrowser >> terminateProcess [
 	| nameAndRules |
 	nameAndRules := self nameAndRulesForSelectedProcess.
-	nameAndRules second
-		ifFalse: [self inform: 'Nope, won''t kill ' , nameAndRules first.
-			^ self].
-	self class terminateProcess: selectedProcess.	
-	self updateProcessList.
+	nameAndRules first = 'my auto-update process'
+		ifTrue:
+			[ self toggleAutoUpdate.
+			^ self ] .nameAndRules second
+		ifFalse: [ self inform: 'Nope, won''t kill ' , nameAndRules first.
+			^ self ].
+	self class terminateProcess: selectedProcess.
+	self updateProcessList
 ]
 
 { #category : #accessing }
