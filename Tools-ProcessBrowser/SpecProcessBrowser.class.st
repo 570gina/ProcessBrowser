@@ -5,7 +5,6 @@ Class {
 	#name : #SpecProcessBrowser,
 	#superclass : #ComposablePresenter,
 	#instVars : [
-		'stackList',
 		'selectedClass',
 		'selectedSelector',
 		'searchString',
@@ -146,91 +145,6 @@ SpecProcessBrowser class >> menuCommandOn: aBuilder [
 		action:[ self open ];
 		help: 'Provides a view of all of the processes (threads) executing in Smalltalk.';
 		icon: self taskbarIcon.
-]
-
-{ #category : #menu }
-SpecProcessBrowser class >> menuProcessList: aBuilder [
-	<contextMenu>
-	<processBrowserProcessMenu>
-	| target selectedProcess |
-	target := aBuilder model.
-	selectedProcess := target selectedProcess.
-	selectedProcess
-		ifNotNil: [ | nameAndRules |
-			nameAndRules := target nameAndRulesForSelectedProcess.
-			(aBuilder item: #Inspect)
-				keyText: 'i';
-				selector: #inspectProcess.
-			(aBuilder item: #'Inspect Pointers')
-				keyText: 'P';
-				selector: #inspectPointers.
-			(Smalltalk globals includesKey: #PointerExplorer)
-				ifTrue: [ (aBuilder item: #'Explore pointers')
-						keyText: 'e';
-						selector: #explorePointers ].
-			nameAndRules second
-				ifTrue: [ (aBuilder item: #Terminate)
-						keyText: 't';
-						selector: #terminateProcess.
-					selectedProcess isSuspended
-						ifTrue: [ (aBuilder item: #Resume)
-								keyText: 'r';
-								selector: #resumeProcess ]
-						ifFalse: [ (aBuilder item: #Suspend)
-								keyText: 's';
-								selector: #suspendProcess ] ].
-			nameAndRules third
-				ifTrue: [ (aBuilder item: #'Change priority')
-						keyText: 'p';
-						selector: #changePriority.
-					(aBuilder item: #Debug)
-						keyText: 'd';
-						selector: #debugProcess ].
-			(aBuilder item: #'Profile messages')
-				keyText: 'm';
-				selector: #messageTally.
-			(selectedProcess suspendingList isKindOf: Semaphore)
-				ifTrue: [ (aBuilder item: #'Signal Semaphore')
-						keyText: 'S';
-						selector: #signalSemaphore ].
-			(aBuilder item: #'Full stack')
-				keyText: 'k';
-				selector: #moreStack;
-				withSeparatorAfter ].
-	(aBuilder item: #'Find context...')
-		keyText: 'f';
-		selector: #findContext.
-	(aBuilder item: #'Find again')
-		keyText: 'g';
-		selector: #nextContext;
-		withSeparatorAfter
-
-]
-
-{ #category : #menu }
-SpecProcessBrowser class >> menuStackList: aBuilder [
-	<contextMenu>
-	<processBrowserStackMenu>
-	
-	(aBuilder item: #'Inspect context')
-		keyText: 'c';
-		selector: #inspectContext.
-	(aBuilder item: #'Explore context')
-		keyText: 'C';
-		selector: #exploreContext;
-		withSeparatorAfter.
-		
-	(aBuilder item: #'Inspect receiver')
-		keyText: 'i';
-		selector: #inspectReceiver.
-	(aBuilder item: #'Explore receiver')
-		keyText: 'I';
-		selector: #exploreReceiver;
-		withSeparatorAfter.
-		
-	(aBuilder item: #'Browse')
-		keyText: 'b';
-		selector: #browseContext.
 ]
 
 { #category : #'process control' }
@@ -430,9 +344,10 @@ SpecProcessBrowser >> autoUpdateButton [
 
 { #category : #'stack list' }
 SpecProcessBrowser >> browseContext [
-	stackListPresenter selection selectedItem 
- ifNil: [ ^ self ]. 
-	Smalltalk tools browser openOnClass: self selectedClass selector: self selectedSelector
+	self selectedContext ifNil: [ ^ self ].
+	Smalltalk tools browser
+		openOnClass: self selectedClass
+		selector: self selectedSelector
 ]
 
 { #category : #'process actions' }
@@ -454,30 +369,6 @@ SpecProcessBrowser >> changePriority [
 			^ self ].
 	self class setProcess: self selectedProcess toPriority: newPriority.
 	self updateProcessList
-]
-
-{ #category : #'process list' }
-SpecProcessBrowser >> changeProcessListSelection: item [
-	self updateStackList.
-	item
-		ifNotNil: [ stackListPresenter
-				items: self stackList;
-				displayBlock: #asString.
-			textPresenter text: ''.
-			stackListPresenter unselectAll ];
-		ifNil: [ stackListPresenter items: #().
-			textPresenter text: '' ].
-	processListPresenter contextMenu: self processMenu
-]
-
-{ #category : #'stack list' }
-SpecProcessBrowser >> changeStackListSelection: item [
-	item
-		ifNotNil: [ textPresenter
-				text: stackListPresenter selection selectedItem sourceCode;
-				behavior: stackListPresenter selection selectedItem methodClass ];
-		ifNil: [ textPresenter text: '' ].
-	stackListPresenter contextMenu: self stackMenu
 ]
 
 { #category : #'process actions' }
@@ -502,21 +393,11 @@ SpecProcessBrowser >> ensureKeyBindingsFor: aWidget [
 	self registerStackListShortcuts: stackListPresenter
 ]
 
-{ #category : #'stack list' }
-SpecProcessBrowser >> exploreContext [
-	stackListPresenter selection selectedItem inspect
-]
-
 { #category : #'process actions' }
 SpecProcessBrowser >> explorePointers [
 	(Smalltalk tools hasToolNamed: #pointerExplorer)
 		ifTrue: [ Smalltalk tools pointerExplorer openOn: self selectedProcess ]
 		ifFalse: [ self inspectPointers ]
-]
-
-{ #category : #'stack list' }
-SpecProcessBrowser >> exploreReceiver [
-	stackListPresenter selection selectedItem ifNotNil: [ stackListPresenter selection selectedItem receiver inspect ]
 ]
 
 { #category : #'process list' }
@@ -563,11 +444,9 @@ SpecProcessBrowser >> initialize [
 { #category : #initialization }
 SpecProcessBrowser >> initializePresenter [
 	processListPresenter
-		whenSelectionChangedDo:
-			[ :selection | self changeProcessListSelection: selection selectedItem ].
+		whenSelectionChangedDo: [ :selection | self updateStackList ].
 	stackListPresenter
-		whenSelectionChangedDo: [ :selection | 
-			self changeStackListSelection: selection selectedItem ].
+		whenSelectionChangedDo: [ :selection | self updateTextArea ].
 	autoUpdateButton action: [ self toggleAutoUpdate ].
 	updateButton action: [ self updateProcessList ].
 	theCPUWatcherButton action: [ self toggleCPUWatcher ]
@@ -575,10 +454,9 @@ SpecProcessBrowser >> initializePresenter [
 
 { #category : #initialization }
 SpecProcessBrowser >> initializeWidgets [
-	processListPresenter := self newList.
-	stackListPresenter := self newList.
+	processListPresenter := self newList contextMenu: self processMenu.
+	stackListPresenter := self newList contextMenu: self stackMenu..
 	textPresenter := self newCode.
-	"textPresenter aboutToStyle: true."
 	autoUpdateButton := self newButton.
 	updateButton := self newButton.
 	theCPUWatcherButton := self newButton.
@@ -598,6 +476,7 @@ SpecProcessBrowser >> initializeWidgets [
 	processListPresenter
 		displayBlock: [ :process | self prettyNameForProcess: process ];
 		sortingBlock: #priority descending.
+	stackListPresenter displayBlock: #asString.
 	self focusOrder
 		add: processListPresenter;
 		add: stackListPresenter;
@@ -616,7 +495,7 @@ SpecProcessBrowser >> initializeWindow: aWindowPresenter [
 
 { #category : #'stack list' }
 SpecProcessBrowser >> inspectContext [
-	stackListPresenter selection selectedItem inspect
+	self selectedContext inspect
 ]
 
 { #category : #'process actions' }
@@ -632,7 +511,8 @@ SpecProcessBrowser >> inspectProcess [
 
 { #category : #'stack list' }
 SpecProcessBrowser >> inspectReceiver [
-	stackListPresenter selection selectedItem ifNotNil: [ stackListPresenter selection selectedItem receiver inspect ]
+	self selectedContext
+		ifNotNil: [ self selectedContext receiver inspect ]
 ]
 
 { #category : #'auto update' }
@@ -734,9 +614,83 @@ SpecProcessBrowser >> processListPresenter [
 
 { #category : #menu }
 SpecProcessBrowser >> processMenu [
-	^self newMenu
-				addAllFromPragma: 'processBrowserProcessMenu'
-				target: self.
+	^ self newMenu
+		addGroup: [ :aGroup | 
+			aGroup
+				addItem: [ :anItem | 
+					anItem
+						name: 'Inspect';
+						shortcut: $i meta;
+						action: [ self inspectProcess ] ];
+				addItem: [ :anItem | 
+					anItem
+						name: 'Inspect Pointers';
+						shortcut: $P meta;
+						action: [ self inspectPointers ] ];
+				addItem: [ :anItem | 
+					anItem
+						name: 'Explore Pointers';
+						shortcut: $e meta;
+						visibleIf: [ Smalltalk globals includesKey: #PointerExplorer ];
+						action: [ self explorePointers ] ];
+				addItem: [ :anItem | 
+					anItem
+						name: 'Terminate';
+						shortcut: $t meta;
+						visibleIf: [ self nameAndRulesForSelectedProcess second ];
+						action: [ self terminateProcess ] ];
+				addItem: [ :anItem | 
+					anItem
+						name: 'Resume';
+						shortcut: $r meta;
+						visibleIf: [ self nameAndRulesForSelectedProcess second and: [ self selectedProcess isSuspended ] ];
+						action: [ self resumeProcess ] ];
+				addItem: [ :anItem | 
+					anItem
+						name: 'Suspend';
+						shortcut: $s meta;
+						visibleIf: [ self nameAndRulesForSelectedProcess second and: [ self selectedProcess isSuspended not ] ];
+						action: [ self suspendProcess ] ];
+				addItem: [ :anItem | 
+					anItem
+						name: 'Change Priority';
+						shortcut: $p meta;
+						visibleIf: [ self nameAndRulesForSelectedProcess third ];
+						action: [ self changePriority ] ];
+				addItem: [ :anItem | 
+					anItem
+						name: 'Debug';
+						shortcut: $d meta;
+						visibleIf: [ self nameAndRulesForSelectedProcess third ];
+						action: [ self debugProcess ] ];
+				addItem: [ :anItem | 
+					anItem
+						name: 'Profile Messages';
+						shortcut: $m meta;
+						action: [ self messageTally ] ];
+				addItem: [ :anItem | 
+					anItem
+						name: 'Signal Semaphore';
+						shortcut: $S meta;
+						visibleIf: [ self selectedProcess suspendingList isKindOf: Semaphore ];
+						action: [ self signalSemaphore ] ];
+				addItem: [ :anItem | 
+					anItem
+						name: 'Full Stack';
+						shortcut: $k meta;
+						action: [ self moreStack ] ] ];
+		addGroup: [ :group | 
+			group
+				addItem: [ :anItem | 
+					anItem
+						name: 'Find Context';
+						shortcut: $f meta;
+						action: [ self findContext ] ];
+				addItem: [ :anItem | 
+					anItem
+						name: 'Find Again';
+						shortcut: $g meta;
+						action: [ self nextContext ] ] ]
 ]
 
 { #category : #'process list' }
@@ -771,19 +725,16 @@ SpecProcessBrowser >> registerProcessListShortcuts: aWidget [
 SpecProcessBrowser >> registerStackListShortcuts: aWidget [
 	aWidget
 		bindKeyCombination: $c meta
-		toAction: [ stackListPresenter selection selectedItem ifNotNil: [ self inspectContext ] ].
-	aWidget
-		bindKeyCombination: $C meta
-		toAction: [ stackListPresenter selection selectedItem  ifNotNil: [ self exploreContext ] ].
-	aWidget
-		bindKeyCombination: $i meta
-		toAction: [ stackListPresenter selection selectedItem  ifNotNil: [ self inspectReceiver ] ].
+		toAction: [ self selectedContext
+				ifNotNil: [ self inspectContext ] ].
 	aWidget
 		bindKeyCombination: $I meta
-		toAction: [ stackListPresenter selection selectedItem  ifNotNil: [ self exploreReceiver ] ].
+		toAction: [ self selectedContext
+				ifNotNil: [ self inspectReceiver ] ].
 	aWidget
 		bindKeyCombination: $b meta
-		toAction: [ stackListPresenter selection selectedItem  ifNotNil: [ self browseContext ] ]
+		toAction: [ self selectedContext
+				ifNotNil: [ self browseContext ] ]
 ]
 
 { #category : #'process actions' }
@@ -797,20 +748,22 @@ SpecProcessBrowser >> selectedClass [
 	"Answer the class in which the currently selected context's method was  found."
 
 	^ selectedClass
-		ifNil: [ selectedClass := stackListPresenter selection selectedItem  receiver
-				ifNil: [ selectedSelector := stackListPresenter selection selectedItem  method selector.
-					stackListPresenter selection selectedItem  method methodClass ]
-				ifNotNil: [ stackListPresenter selection selectedItem  methodClass ] ]
+		ifNil: [ selectedClass := self selectedContext receiver
+				ifNil: [ selectedSelector := self selectedContext method selector.
+					self selectedContext method methodClass ]
+				ifNotNil: [ self selectedContext methodClass ] ]
 ]
 
 { #category : #accessing }
 SpecProcessBrowser >> selectedContext [
-	^ stackListPresenter selection selectedItem 
+
+	^ self stackListPresenter selection selectedItem
 ]
 
 { #category : #accessing }
 SpecProcessBrowser >> selectedMethod [
-	^ stackListPresenter selection selectedItem  ifNotNil: [ stackListPresenter selection selectedItem  method ]
+	^ self selectedContext
+		ifNotNil: [ self selectedContext method ]
 ]
 
 { #category : #accessing }
@@ -822,12 +775,11 @@ SpecProcessBrowser >> selectedProcess [
 SpecProcessBrowser >> selectedSelector [
 	"Answer the class in which the currently selected context's method was  
 	found."
-
 	^ selectedSelector
-		ifNil: [ selectedSelector := stackListPresenter selection selectedItem  receiver
-				ifNil: [ selectedClass := stackListPresenter selection selectedItem  method methodClass selectedContext
-						method selector ]
-				ifNotNil: [ stackListPresenter selection selectedItem  selector ] ]
+		ifNil: [ selectedSelector := self selectedContext receiver
+				ifNil: [ selectedClass := self selectedContext method methodClass
+						selectedContext method selector ]
+				ifNotNil: [ self selectedContext selector ] ]
 ]
 
 { #category : #'cpu watcher' }
@@ -844,7 +796,7 @@ SpecProcessBrowser >> setUpdateCallbackAfter: seconds [
 { #category : #view }
 SpecProcessBrowser >> shoutAboutToStyle: aPluggableShoutMorphOrView [
 	self flag: #remove.
-	stackListPresenter selection selectedItem  ifNil: [ ^ false ].
+	self selectedContext ifNil: [ ^ false ].
 	aPluggableShoutMorphOrView classOrMetaClass: self selectedClass.
 	^ true
 ]
@@ -860,21 +812,28 @@ SpecProcessBrowser >> signalSemaphore [
 ]
 
 { #category : #accessing }
-SpecProcessBrowser >> stackList [
-	^ stackList
-		ifNil: [#()]
-]
-
-{ #category : #accessing }
 SpecProcessBrowser >> stackListPresenter [
 	^stackListPresenter
 ]
 
 { #category : #menu }
 SpecProcessBrowser >> stackMenu [
-	^self newMenu
-		addAllFromPragma: 'processBrowserStackMenu'
-		target: self.
+	^ self newMenu
+		addItem: [ :anItem | 
+			anItem
+				name: 'Inspect Context';
+				shortcut: $c meta;
+				action: [ self inspectContext ] ];
+		addItem: [ :anItem | 
+			anItem
+				name: 'Inspect Receiver';
+				shortcut: $I meta;
+				action: [ self inspectReceiver ] ];
+		addItem: [ :anItem | 
+			anItem
+				name: 'Browse';
+				shortcut: $b meta;
+				action: [ self browseContext ] ]
 ]
 
 { #category : #'auto update' }
@@ -951,7 +910,7 @@ SpecProcessBrowser >> terminateProcess [
 { #category : #accessing }
 SpecProcessBrowser >> text [
 	self flag: #remove.
-	^ stackListPresenter selection selectedItem sourceCode
+	^ self selectedContext sourceCode
 ]
 
 { #category : #accessing }
@@ -1004,7 +963,7 @@ SpecProcessBrowser >> updateButton [
 
 { #category : #'process list' }
 SpecProcessBrowser >> updateProcessList [
-	| newIndex processList selectedProcess |
+	| processList selectedProcess |
 	selectedProcess := self selectedProcess.
 	selectedSelector := nil.
 	Smalltalk garbageCollectMost.
@@ -1024,33 +983,29 @@ SpecProcessBrowser >> updateStackList [
 
 { #category : #'stack list' }
 SpecProcessBrowser >> updateStackList: depth [
-	| suspendedContext oldHighlight index |
-	processListPresenter selection selectedItem
-		ifNil: [ stackList := nil.
-			^ self ].
-	stackList
-		ifNotNil: [ oldHighlight := stackListPresenter selection selectedItem ].
-	self selectedProcess == Processor activeProcess
-		ifTrue: [ stackList := thisContext stackOfSize: depth ]
-		ifFalse: [ suspendedContext := self selectedProcess suspendedContext.
-			suspendedContext
-				ifNil: [ stackList := nil ]
-				ifNotNil: [stackList:= (suspendedContext stackOfSize: depth) ] ].
-	index := stackList
-		ifNil: [ 0 ]
-		ifNotNil: [ stackList indexOf: oldHighlight ].
-	selectedClass := nil.
-	selectedSelector := nil.
-	self updateStackListPresenter: index
+	| stackList suspendedContext selectedContext |
+	self selectedProcess
+		ifNotNil: [ selectedContext := self selectedContext.
+			self selectedProcess == Processor activeProcess
+				ifTrue: [ stackList := thisContext stackOfSize: depth ]
+				ifFalse: [ suspendedContext := self selectedProcess suspendedContext.
+					suspendedContext
+						ifNil: [ stackList := nil ]
+						ifNotNil: [ stackList := suspendedContext stackOfSize: depth ] ].
+			selectedClass := nil.
+			selectedSelector := nil ].
+	stackListPresenter
+		items: (stackList ifNil:[#()]);
+		selectItem: selectedContext
 ]
 
-{ #category : #'update presenter' }
-SpecProcessBrowser >> updateStackListPresenter: index [
-	stackList
-		ifNotNil: [ stackListPresenter
-				items: self stackList;
-				selectIndex: index;
-				displayBlock: #asString ]
+{ #category : #'stack list' }
+SpecProcessBrowser >> updateTextArea [
+	self selectedContext 
+		ifNotNil: [ textPresenter
+				text: self selectedContext sourceCode;
+				behavior: self selectedContext methodClass ];
+		ifNil: [ textPresenter text: '' ]
 ]
 
 { #category : #'api-window' }
