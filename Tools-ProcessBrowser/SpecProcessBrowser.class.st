@@ -578,11 +578,10 @@ SpecProcessBrowser >> initializeWidgets [
 	processListPresenter := self newList.
 	stackListPresenter := self newList.
 	textPresenter := self newCode.
-	textPresenter aboutToStyle: true.
+	"textPresenter aboutToStyle: true."
 	autoUpdateButton := self newButton.
 	updateButton := self newButton.
 	theCPUWatcherButton := self newButton.
-
 	autoUpdateButton
 		label: 'Start auto-update';
 		icon: (self iconNamed: #smallDoIt).
@@ -596,11 +595,9 @@ SpecProcessBrowser >> initializeWidgets [
 		ifFalse: [ theCPUWatcherButton
 				label: 'Start CPUWatcher';
 				icon: (self iconNamed: #smallDoIt) ].
-
 	processListPresenter
 		displayBlock: [ :process | self prettyNameForProcess: process ];
 		sortingBlock: #priority descending.
-
 	self focusOrder
 		add: processListPresenter;
 		add: stackListPresenter;
@@ -818,7 +815,7 @@ SpecProcessBrowser >> selectedMethod [
 
 { #category : #accessing }
 SpecProcessBrowser >> selectedProcess [
-	^ self processListPresenter selectedItem
+	^ self processListPresenter selection selectedItem
 ]
 
 { #category : #accessing }
@@ -1007,15 +1004,16 @@ SpecProcessBrowser >> updateButton [
 
 { #category : #'process list' }
 SpecProcessBrowser >> updateProcessList [
-	| newIndex processList |
+	| newIndex processList selectedProcess |
+	selectedProcess := self selectedProcess.
 	selectedSelector := nil.
 	Smalltalk garbageCollectMost.
 	"lose defunct processes"
-	processList := WeakArray withAll: (Process allSubInstances reject: [ :each | each isTerminated ]).
-	newIndex := processList indexOf: self selectedProcess ifAbsent: [ 1 ].
+	processList := WeakArray
+		withAll: (Process allSubInstances reject: [ :each | each isTerminated ]).
 	processListPresenter
 		items: processList;
-		selectIndex: newIndex.
+		selectItem: selectedProcess.
 	self updateStackList
 ]
 
