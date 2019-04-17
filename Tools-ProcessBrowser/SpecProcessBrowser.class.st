@@ -5,9 +5,7 @@ Class {
 	#name : #SpecProcessBrowser,
 	#superclass : #ComposablePresenter,
 	#instVars : [
-		'processList',
 		'stackList',
-		'selectedProcess',
 		'selectedClass',
 		'selectedSelector',
 		'searchString',
@@ -163,9 +161,6 @@ SpecProcessBrowser class >> menuProcessList: aBuilder [
 			(aBuilder item: #Inspect)
 				keyText: 'i';
 				selector: #inspectProcess.
-			(aBuilder item: #Explore)
-				keyText: 'I';
-				selector: #exploreProcess.
 			(aBuilder item: #'Inspect Pointers')
 				keyText: 'P';
 				selector: #inspectPointers.
@@ -440,12 +435,6 @@ SpecProcessBrowser >> browseContext [
 	Smalltalk tools browser openOnClass: self selectedClass selector: self selectedSelector
 ]
 
-{ #category : #view }
-SpecProcessBrowser >> browsedEnvironment [
-	self flag: #remove.
-	^ Smalltalk globals
-]
-
 { #category : #'process actions' }
 SpecProcessBrowser >> changePriority [
 	| str newPriority nameAndRules |
@@ -456,21 +445,19 @@ SpecProcessBrowser >> changePriority [
 			^ self ].
 	str := UIManager default
 		request: 'New priority'
-		initialAnswer: selectedProcess priority asString.
+		initialAnswer: self selectedProcess priority asString.
 	str isEmptyOrNil
 		ifTrue: [ ^ self ].
 	newPriority := str asNumber asInteger.
 	(newPriority < 1 or: [ newPriority > Processor highestPriority ])
 		ifTrue: [ self inform: 'Bad priority'.
 			^ self ].
-	self class setProcess: selectedProcess toPriority: newPriority.
+	self class setProcess: self selectedProcess toPriority: newPriority.
 	self updateProcessList
 ]
 
 { #category : #'process list' }
 SpecProcessBrowser >> changeProcessListSelection: item [
-	selectedProcess := processList
-		at: processListPresenter selection selectedIndex.
 	self updateStackList.
 	item
 		ifNotNil: [ stackListPresenter
@@ -500,26 +487,12 @@ SpecProcessBrowser >> debugProcess [
 	nameAndRules third
 		ifFalse: [self inform: 'Nope, won''t debug ' , nameAndRules first.
 			^ self].
-	self class debugProcess: selectedProcess.
+	self class debugProcess: self selectedProcess.
 ]
 
 { #category : #accessing }
 SpecProcessBrowser >> deferredMessageRecipient: anObject [
 	deferredMessageRecipient := anObject
-]
-
-{ #category : #accessing }
-SpecProcessBrowser >> doItContext [
-	self flag: #remove.
-	^ stackListPresenter selection selectedItem
-]
-
-{ #category : #accessing }
-SpecProcessBrowser >> doItReceiver [
-	self flag: #remove.
-	^ stackListPresenter selection selectedItem
-		ifNil: [ selectedProcess ]
-		ifNotNil: [ stackListPresenter selection selectedItem receiver ]
 ]
 
 { #category : #shortcuts }
@@ -536,19 +509,9 @@ SpecProcessBrowser >> exploreContext [
 
 { #category : #'process actions' }
 SpecProcessBrowser >> explorePointers [
-	| saved |
-		selectedProcess ifNil: [ ^ self ].
-	saved := selectedProcess.
-	[ selectedProcess := nil.
 	(Smalltalk tools hasToolNamed: #pointerExplorer)
-		ifTrue: [ Smalltalk tools pointerExplorer openOn: saved ]
-		ifFalse: [ self inspectPointers ] ]
-		ensure: [ selectedProcess := saved ]
-]
-
-{ #category : #'process list' }
-SpecProcessBrowser >> exploreProcess [
-	selectedProcess inspect
+		ifTrue: [ Smalltalk tools pointerExplorer openOn: self selectedProcess ]
+		ifFalse: [ self inspectPointers ]
 ]
 
 { #category : #'stack list' }
@@ -619,6 +582,7 @@ SpecProcessBrowser >> initializeWidgets [
 	autoUpdateButton := self newButton.
 	updateButton := self newButton.
 	theCPUWatcherButton := self newButton.
+
 	autoUpdateButton
 		label: 'Start auto-update';
 		icon: (self iconNamed: #smallDoIt).
@@ -632,12 +596,16 @@ SpecProcessBrowser >> initializeWidgets [
 		ifFalse: [ theCPUWatcherButton
 				label: 'Start CPUWatcher';
 				icon: (self iconNamed: #smallDoIt) ].
+
+	processListPresenter
+		displayBlock: [ :process | self prettyNameForProcess: process ];
+		sortingBlock: #priority descending.
+
 	self focusOrder
 		add: processListPresenter;
 		add: stackListPresenter;
 		add: textPresenter.
-	self deferredMessageRecipient: WorldState.
-
+	self deferredMessageRecipient: WorldState
 ]
 
 { #category : #initialization }
@@ -656,22 +624,13 @@ SpecProcessBrowser >> inspectContext [
 
 { #category : #'process actions' }
 SpecProcessBrowser >> inspectPointers [
-	| tc pointers |
-		selectedProcess ifNil: [ ^ self ].
-	tc := thisContext.
-	pointers := selectedProcess
-		pointersToExcept:
-			{self processList.
-			tc.
-			self}.
-	pointers ifEmpty: [ ^ self ].
-	pointers
-		inspectWithLabel: 'Objects pointing to ' , selectedProcess browserPrintString
+	(self selectedProcess pointersToExcept: {self processList . thisContext . self})
+		ifNotEmpty: [ :pointers | pointers inspectWithLabel: 'Objects pointing to ' , self selectedProcess browserPrintString ]
 ]
 
 { #category : #'process list' }
 SpecProcessBrowser >> inspectProcess [
-	selectedProcess inspect
+	self selectedProcess inspect
 ]
 
 { #category : #'stack list' }
@@ -698,7 +657,7 @@ SpecProcessBrowser >> messageTally [
 	(secs isNil
 			or: [secs isZero])
 		ifTrue: [^ self].
-	[ Smalltalk tools timeProfiler spyOnProcess: selectedProcess forMilliseconds: secs * 1000 ] forkAt: selectedProcess priority + 1.
+	[ Smalltalk tools timeProfiler spyOnProcess: self selectedProcess forMilliseconds: secs * 1000 ] forkAt: self selectedProcess priority + 1.
 ]
 
 { #category : #'stack list' }
@@ -717,7 +676,8 @@ SpecProcessBrowser >> nameAndRulesFor: aProcess [
 { #category : #'process actions' }
 SpecProcessBrowser >> nameAndRulesForSelectedProcess [
 	"Answer a nickname and two flags: allow-stop, and allow-debug"
-	^self nameAndRulesFor: selectedProcess
+
+	^ self nameAndRulesFor: self selectedProcess
 ]
 
 { #category : #'process list' }
@@ -754,16 +714,20 @@ SpecProcessBrowser >> notify: errorString at: location in: aStream [
 ]
 
 { #category : #'process list' }
-SpecProcessBrowser >> prettyNameForProcess: aProcess [ 
-	| nameAndRules |
-	aProcess ifNil: [ ^'<nil>' ].
-	nameAndRules := self nameAndRulesFor: aProcess.
-	^ aProcess browserPrintStringWith: nameAndRules first
+SpecProcessBrowser >> prettyNameForProcess: aProcess [
+	| tally percent processName |
+	tally := CPUWatcher current ifNotNil: #tally.
+
+	percent := tally ifNotNil: [ (((tally occurrencesOf: aProcess) * 100.0 / tally size roundTo: 1) asString padLeftTo: 2) , '% ' ] ifNil: [ '' ].
+
+	processName := aProcess ifNil: [ '<nil>' ] ifNotNil: [ aProcess browserPrintStringWith: (self nameAndRulesFor: aProcess) first ].
+
+	^ percent , processName
 ]
 
 { #category : #accessing }
 SpecProcessBrowser >> processList [
-	^ processList
+	^ self processListPresenter items
 ]
 
 { #category : #accessing }
@@ -780,18 +744,7 @@ SpecProcessBrowser >> processMenu [
 
 { #category : #'process list' }
 SpecProcessBrowser >> processNameList [
-	"since processList is a WeakArray, we have to strengthen the result"
-	| tally |
-	tally := CPUWatcher
-		ifNotNil: [ CPUWatcher current ifNotNil: [ CPUWatcher current tally ] ].
-	^ (processList asOrderedCollection copyWithout: nil)
-		collect: [ :each | 
-			| percent |
-			percent := tally
-				ifNotNil: [ (((tally occurrencesOf: each) * 100.0 / tally size roundTo: 1)
-						asString padLeftTo: 2) , '% ' ]
-				ifNil: [ '' ].
-			percent , (self prettyNameForProcess: each) ]
+	^ (self processList asOrderedCollection copyWithout: nil) collect: [ :each | self prettyNameForProcess: each ]
 ]
 
 { #category : #view }
@@ -802,48 +755,19 @@ SpecProcessBrowser >> refactor [
 
 { #category : #shortcuts }
 SpecProcessBrowser >> registerProcessListShortcuts: aWidget [
-	aWidget
-		bindKeyCombination: $i meta
-		toAction: [ selectedProcess ifNotNil: [ self inspectProcess ] ].
-	aWidget
-		bindKeyCombination: $I meta
-		toAction: [ selectedProcess ifNotNil: [ self exploreProcess ] ].
-	aWidget
-		bindKeyCombination: $P meta
-		toAction: [ selectedProcess ifNotNil: [ self inspectPointers ] ].
-	aWidget
-		bindKeyCombination: $e meta
-		toAction: [ selectedProcess ifNotNil: [ self explorePointers ] ].
-	aWidget
-		bindKeyCombination: $t meta
-		toAction: [ selectedProcess ifNotNil: [ self terminateProcess ] ].
-	aWidget
-		bindKeyCombination: $r meta
-		toAction: [ selectedProcess ifNotNil: [ self resumeProcess ] ].
-	aWidget
-		bindKeyCombination: $s meta
-		toAction: [ selectedProcess ifNotNil: [ self suspendProcess ] ].
-	aWidget
-		bindKeyCombination: $p meta
-		toAction: [ selectedProcess ifNotNil: [ self changePriority ] ].
-	aWidget
-		bindKeyCombination: $d meta
-		toAction: [ selectedProcess ifNotNil: [ self debugProcess ] ].
-	aWidget
-		bindKeyCombination: $m meta
-		toAction: [ selectedProcess ifNotNil: [ self messageTally ] ].
-	aWidget
-		bindKeyCombination: $S meta
-		toAction: [ selectedProcess ifNotNil: [ self signalSemaphore ] ].
-	aWidget
-		bindKeyCombination: $k meta
-		toAction: [ selectedProcess ifNotNil: [ self moreStack ] ].
-	aWidget
-		bindKeyCombination: $f meta
-		toAction: [ selectedProcess ifNotNil: [ self findContext ] ].
-	aWidget
-		bindKeyCombination: $g meta
-		toAction: [ selectedProcess ifNotNil: [ self nextContext ] ]
+	aWidget bindKeyCombination: $i meta toAction: [ self inspectProcess ].
+	aWidget bindKeyCombination: $P meta toAction: [ self inspectPointers ].
+	aWidget bindKeyCombination: $e meta toAction: [ self explorePointers ].
+	aWidget bindKeyCombination: $t meta toAction: [ self terminateProcess ].
+	aWidget bindKeyCombination: $r meta toAction: [ self resumeProcess ].
+	aWidget bindKeyCombination: $s meta toAction: [ self suspendProcess ].
+	aWidget bindKeyCombination: $p meta toAction: [ self changePriority ].
+	aWidget bindKeyCombination: $d meta toAction: [ self debugProcess ].
+	aWidget bindKeyCombination: $m meta toAction: [ self messageTally ].
+	aWidget bindKeyCombination: $S meta toAction: [ self signalSemaphore ].
+	aWidget bindKeyCombination: $k meta toAction: [ self moreStack ].
+	aWidget bindKeyCombination: $f meta toAction: [ self findContext ].
+	aWidget bindKeyCombination: $g meta toAction: [ self nextContext ]
 ]
 
 { #category : #shortcuts }
@@ -867,9 +791,7 @@ SpecProcessBrowser >> registerStackListShortcuts: aWidget [
 
 { #category : #'process actions' }
 SpecProcessBrowser >> resumeProcess [
-	selectedProcess
-		ifNil: [^ self].
-	self class resumeProcess: selectedProcess.
+	self class resumeProcess: self selectedProcess.
 	self updateProcessList
 ]
 
@@ -885,12 +807,6 @@ SpecProcessBrowser >> selectedClass [
 ]
 
 { #category : #accessing }
-SpecProcessBrowser >> selectedClassOrMetaClass [
-	self flag: #remove.
-	^ self doItReceiver class
-]
-
-{ #category : #accessing }
 SpecProcessBrowser >> selectedContext [
 	^ stackListPresenter selection selectedItem 
 ]
@@ -902,7 +818,7 @@ SpecProcessBrowser >> selectedMethod [
 
 { #category : #accessing }
 SpecProcessBrowser >> selectedProcess [
-	^selectedProcess
+	^ self processListPresenter selectedItem
 ]
 
 { #category : #accessing }
@@ -938,9 +854,9 @@ SpecProcessBrowser >> shoutAboutToStyle: aPluggableShoutMorphOrView [
 
 { #category : #'process actions' }
 SpecProcessBrowser >> signalSemaphore [
-	(selectedProcess suspendingList isKindOf: Semaphore)
-		ifFalse: [^ self].
-	[selectedProcess suspendingList signal] fork.
+	(self selectedProcess suspendingList isKindOf: Semaphore) ifFalse: [ ^ self ].
+	
+	[ self selectedProcess suspendingList signal ] fork.
 	(Delay forMilliseconds: 300) wait.
 	"Hate to make the UI wait, but it's convenient..."
 	self updateProcessList
@@ -1011,13 +927,13 @@ SpecProcessBrowser >> stopCPUWatcher [
 { #category : #'process actions' }
 SpecProcessBrowser >> suspendProcess [
 	| nameAndRules |
-	selectedProcess isSuspended
-		ifTrue: [^ self].
+	self selectedProcess isSuspended ifTrue: [^ self].
+	
 	nameAndRules := self nameAndRulesForSelectedProcess.
 	nameAndRules second
 		ifFalse: [self inform: 'Nope, won''t suspend ' , nameAndRules first.
 			^ self].
-	self class suspendProcess: selectedProcess.
+	self class suspendProcess: self selectedProcess.
 	self updateProcessList
 ]
 
@@ -1031,7 +947,7 @@ SpecProcessBrowser >> terminateProcess [
 			^ self ] .nameAndRules second
 		ifFalse: [ self inform: 'Nope, won''t kill ' , nameAndRules first.
 			^ self ].
-	self class terminateProcess: selectedProcess.
+	self class terminateProcess: self selectedProcess.
 	self updateProcessList
 ]
 
@@ -1091,26 +1007,16 @@ SpecProcessBrowser >> updateButton [
 
 { #category : #'process list' }
 SpecProcessBrowser >> updateProcessList [
-	| oldSelectedProcess newIndex |
-	oldSelectedProcess := selectedProcess.
-	processList := selectedProcess := selectedSelector := nil.
+	| newIndex processList |
+	selectedSelector := nil.
 	Smalltalk garbageCollectMost.
 	"lose defunct processes"
-	processList := Process allSubInstances
-		reject: [ :each | each isTerminated ].
-	processList := processList sort: [ :a :b | a priority >= b priority ].
-	processList := WeakArray withAll: processList.
-	newIndex := processList indexOf: oldSelectedProcess ifAbsent: [ 1 ].
-	self updateProcessListPresenter: newIndex.
-	self updateStackList
-]
-
-{ #category : #'update presenter' }
-SpecProcessBrowser >> updateProcessListPresenter: index [
-	selectedProcess := processList at: index.
+	processList := WeakArray withAll: (Process allSubInstances reject: [ :each | each isTerminated ]).
+	newIndex := processList indexOf: self selectedProcess ifAbsent: [ 1 ].
 	processListPresenter
-		items: self processNameList;
-		selectIndex: index
+		items: processList;
+		selectIndex: newIndex.
+	self updateStackList
 ]
 
 { #category : #'stack list' }
@@ -1126,9 +1032,9 @@ SpecProcessBrowser >> updateStackList: depth [
 			^ self ].
 	stackList
 		ifNotNil: [ oldHighlight := stackListPresenter selection selectedItem ].
-	selectedProcess == Processor activeProcess
+	self selectedProcess == Processor activeProcess
 		ifTrue: [ stackList := thisContext stackOfSize: depth ]
-		ifFalse: [ suspendedContext := selectedProcess suspendedContext.
+		ifFalse: [ suspendedContext := self selectedProcess suspendedContext.
 			suspendedContext
 				ifNil: [ stackList := nil ]
 				ifNotNil: [stackList:= (suspendedContext stackOfSize: depth) ] ].
