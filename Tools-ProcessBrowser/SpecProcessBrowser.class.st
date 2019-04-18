@@ -504,15 +504,15 @@ SpecProcessBrowser >> inspectContext [
 
 { #category : #'process actions' }
 SpecProcessBrowser >> inspectPointers [
-		self selectedProcess ifNil: [ ^ self ].
-(self selectedProcess
-				pointersToExcept:
-					{self processList.
-					thisContext.
-					self})
-				ifNotEmpty: [ :pointers | 
-					pointers
-						inspectWithLabel: 'Objects pointing to ' , self selectedProcess browserPrintString  ]
+	self selectedProcess ifNil: [ ^ self ].
+	(self selectedProcess
+		pointersToExcept:
+			{self processListPresenter items.
+			thisContext.
+			self})
+		ifNotEmpty: [ :pointers | 
+			pointers
+				inspectWithLabel: 'Objects pointing to ' , self selectedProcess browserPrintString ]
 ]
 
 { #category : #'process list' }
@@ -583,16 +583,17 @@ SpecProcessBrowser >> nextContext [
 	initialProcessIndex := processListPresenter selection selectedIndex.
 	initialStackIndex := stackListPresenter selection selectedIndex.
 	found := false.
-	initialProcessIndex to: self processList size do: [ :pi | 
+	initialProcessIndex to: self processListPresenter items size do: [ :pi | 
 		found
 			ifFalse: [ processListPresenter selectIndex: pi.
-				self stackList
+				self stackListPresenter items
 					withIndexDo: [ :name :si | 
 						(found not
 							and: [ pi ~= initialProcessIndex or: [ si > initialStackIndex ] ])
-							ifTrue: [ (name asString includesSubstring: searchString)
+							ifTrue: [ 	(name asString includesSubstring: searchString)
 									ifTrue: [ stackListPresenter selectIndex: si.
 										found := true ] ] ] ] ].
+
 	found
 		ifFalse: [ processListPresenter selectIndex: initialProcessIndex.
 			stackListPresenter selectIndex: initialStackIndex ].
@@ -618,11 +619,6 @@ SpecProcessBrowser >> prettyNameForProcess: aProcess [
 	processName := aProcess ifNil: [ '<nil>' ] ifNotNil: [ aProcess browserPrintStringWith: (self nameAndRulesFor: aProcess) first ].
 
 	^ percent , processName
-]
-
-{ #category : #accessing }
-SpecProcessBrowser >> processList [
-	^ self processListPresenter items
 ]
 
 { #category : #accessing }
@@ -713,7 +709,8 @@ SpecProcessBrowser >> processMenu [
 
 { #category : #'process list' }
 SpecProcessBrowser >> processNameList [
-	^ (self processList asOrderedCollection copyWithout: nil) collect: [ :each | self prettyNameForProcess: each ]
+	^ (self processListPresenter items asOrderedCollection copyWithout: nil)
+		collect: [ :each | self prettyNameForProcess: each ]
 ]
 
 { #category : #view }
@@ -757,6 +754,12 @@ SpecProcessBrowser >> resumeProcess [
 	self selectedProcess ifNil: [ ^ self ].
 	self class resumeProcess: self selectedProcess.
 	self updateProcessList
+]
+
+{ #category : #'process list' }
+SpecProcessBrowser >> searchString: aString [
+searchString:= aString
+	
 ]
 
 { #category : #accessing }

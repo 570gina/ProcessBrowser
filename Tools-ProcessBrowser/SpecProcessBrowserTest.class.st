@@ -27,6 +27,16 @@ SpecProcessBrowserTest >> setUp [
 ]
 
 { #category : #tests }
+SpecProcessBrowserTest >> testAutoUpdateDoesNotShareStateInTwoProcessBrowsers [
+	| otherBrowser |
+	otherBrowser := SpecProcessBrowser new.
+		self assert: browser isAutoUpdating equals: otherBrowser isAutoUpdating.
+	browser startAutoUpdate.
+	self deny: browser isAutoUpdating equals: otherBrowser isAutoUpdating.
+	browser stopAutoUpdate
+]
+
+{ #category : #tests }
 SpecProcessBrowserTest >> testCreateANewProcess [
 	| processList oldProcessListSize newProcess oldProcessList |
 	"Build the list of all the instances of Process"
@@ -41,30 +51,44 @@ SpecProcessBrowserTest >> testCreateANewProcess [
 	"Rebuild the list of all instances of Process"
 	processList := Process allSubInstances
 		reject: [ :each | each isTerminated ].
-		
+
 	"Check that the size of this new process list is one greater than the stored value"
 	self assert: processList size equals: oldProcessListSize + 1.
-	
+
 	"Check that the new process list does indeed include the new process we just created"
 	self assert: (processList includes: newProcess).
-	newProcess terminate
+]
+
+{ #category : #tests }
+SpecProcessBrowserTest >> testFindTheContext [
+	| newProcess found |
+	"Create a new Process"
+	newProcess := self createANewProcess.
+	browser searchString: 'semaphore signal'.
+	browser updateProcessList.
+	found := browser nextContext.
+	self assert: found.
+	newProcess terminate.
+	browser updateProcessList.
+	found := browser nextContext.
+	self deny: found
 ]
 
 { #category : #tests }
 SpecProcessBrowserTest >> testProcessesAreArrangedAccordingToPriority [
-	browser processList allButFirst
-		inject: browser processList first
+	browser processListPresenter items allButFirst
+		inject: browser processListPresenter items first
 		into: [ :front :process | 
 			self assert: front priority >= process priority.
 			process ]
 ]
 
 { #category : #tests }
-SpecProcessBrowserTest >> testTerminateProcess [
+SpecProcessBrowserTest >> testTerminateTheProcess [
 	| newProcess |
-"Create a new Process"
+	"Create a new Process"
 	newProcess := self createANewProcess.
-	browser updateButton performAction.
+	browser updateProcessList.
 	self
 		assert: (browser processListPresenter items includes: newProcess).
 	browser processListPresenter selectItem: newProcess.
@@ -74,46 +98,29 @@ SpecProcessBrowserTest >> testTerminateProcess [
 
 { #category : #tests }
 SpecProcessBrowserTest >> testUpdateListButtonIsClicked [
-	| newProcess oldProcessListSize semaphore oldProcessList |
-	"Build the list of all the instances of Process"
-	oldProcessList := browser processList.
-	"Store how many processes there are"
-	oldProcessListSize := oldProcessList size.
+	| newProcess oldProcessList |
+	oldProcessList := browser processListPresenter items.
 
-	"Create a new process that will stay alive"
-	semaphore := Semaphore new.
-	newProcess := [ semaphore signal.
-	Semaphore new wait ] fork.
-	"Wait for the process above to have started, just to be sure"
-	semaphore wait.
+	"Create a new Process"
+	newProcess := self createANewProcess.
 	browser updateButton performAction.
-
-	"Check that the size of this new process list is one greater than the stored value"
-	self assert: browser processList size equals: oldProcessListSize + 1.
+	self deny: browser processListPresenter items equals: oldProcessList.
 	"Check that the new process list does indeed include the new process we just created"
-	self assert: (browser processList includes: newProcess)
+	self
+		assert: (browser processListPresenter items includes: newProcess).
 ]
 
 { #category : #tests }
 SpecProcessBrowserTest >> testUpdateListButtonIsNotClicked [
-	| newProcess oldProcessListSize semaphore oldProcessList nowProcessList |
-	"Build the list of all the instances of Process"
-	oldProcessList := browser processList.
-	"Store how many processes there are"
-	oldProcessListSize := oldProcessList size.
+	| newProcess oldProcessList |
+	oldProcessList := browser processListPresenter items.
 
-	"Create a new process that will stay alive"
-	semaphore := Semaphore new.
-	newProcess := [ semaphore signal.
-	Semaphore new wait ] fork.
-	"Wait for the process above to have started, just to be sure"
-	semaphore wait.
-
-	"The update List Button is not clicked, Process List is not updated."
-	nowProcessList := Process allSubInstances
-		reject: [ :each | each isTerminated ].
-	"Check that the size of this new process list is equal to the stored value"
-	self assert: browser processList size equals: oldProcessListSize.
+	"Create a new Process"
+	newProcess := self createANewProcess.
+	self
+		assert: browser processListPresenter items
+		equals: oldProcessList.
 	"Check that the new process list does not include the new process we just created"
-	self assert: (browser processList includes: newProcess) equals: false
+	self deny: (browser processListPresenter items includes: newProcess).
+
 ]
