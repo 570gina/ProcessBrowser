@@ -344,15 +344,16 @@ SpecProcessBrowser >> autoUpdateButton [
 
 { #category : #'stack list' }
 SpecProcessBrowser >> browseContext [
-	self selectedContext ifNil: [ ^ self ].
-	Smalltalk tools browser
-		openOnClass: self selectedClass
-		selector: self selectedSelector
+		self selectedContext ifNil: [ ^ self ].
+		Smalltalk tools browser
+				openOnClass: self selectedClass
+				selector: self selectedSelector 
 ]
 
 { #category : #'process actions' }
 SpecProcessBrowser >> changePriority [
 	| str newPriority nameAndRules |
+		self selectedProcess ifNil: [ ^ self ].
 	nameAndRules := self nameAndRulesForSelectedProcess.
 	nameAndRules third
 		ifFalse:
@@ -374,11 +375,12 @@ SpecProcessBrowser >> changePriority [
 { #category : #'process actions' }
 SpecProcessBrowser >> debugProcess [
 	| nameAndRules |
+		self selectedProcess ifNil: [ ^ self ].
 	nameAndRules := self nameAndRulesForSelectedProcess.
 	nameAndRules third
-		ifFalse: [self inform: 'Nope, won''t debug ' , nameAndRules first.
-			^ self].
-	self class debugProcess: self selectedProcess.
+		ifFalse: [ self inform: 'Nope, won''t debug ' , nameAndRules first.
+			^ self ].
+	self class debugProcess: self selectedProcess
 ]
 
 { #category : #accessing }
@@ -395,6 +397,7 @@ SpecProcessBrowser >> ensureKeyBindingsFor: aWidget [
 
 { #category : #'process actions' }
 SpecProcessBrowser >> explorePointers [
+	self selectedProcess ifNil: [ ^ self ].
 	(Smalltalk tools hasToolNamed: #pointerExplorer)
 		ifTrue: [ Smalltalk tools pointerExplorer openOn: self selectedProcess ]
 		ifFalse: [ self inspectPointers ]
@@ -495,24 +498,33 @@ SpecProcessBrowser >> initializeWindow: aWindowPresenter [
 
 { #category : #'stack list' }
 SpecProcessBrowser >> inspectContext [
-	self selectedContext inspect
+	self selectedContext ifNil: [ ^self].
+		self selectedContext inspect 
 ]
 
 { #category : #'process actions' }
 SpecProcessBrowser >> inspectPointers [
-	(self selectedProcess pointersToExcept: {self processList . thisContext . self})
-		ifNotEmpty: [ :pointers | pointers inspectWithLabel: 'Objects pointing to ' , self selectedProcess browserPrintString ]
+		self selectedProcess ifNil: [ ^ self ].
+(self selectedProcess
+				pointersToExcept:
+					{self processList.
+					thisContext.
+					self})
+				ifNotEmpty: [ :pointers | 
+					pointers
+						inspectWithLabel: 'Objects pointing to ' , self selectedProcess browserPrintString  ]
 ]
 
 { #category : #'process list' }
 SpecProcessBrowser >> inspectProcess [
-	self selectedProcess inspect
+	self selectedProcess ifNil: [ ^ self ].
+self selectedProcess inspect 
 ]
 
 { #category : #'stack list' }
 SpecProcessBrowser >> inspectReceiver [
-	self selectedContext
-		ifNotNil: [ self selectedContext receiver inspect ]
+	self selectedContext ifNil: [ ^ self ].
+self selectedContext receiver inspect 
 ]
 
 { #category : #'auto update' }
@@ -528,17 +540,23 @@ SpecProcessBrowser >> isAutoUpdatingPaused [
 { #category : #'stack list' }
 SpecProcessBrowser >> messageTally [
 	| secString secs |
-	secString := UIManager default request: 'Profile for how many seconds?' initialAnswer: '4'.
-	secString ifNil: [secString := String new].
+		self selectedProcess ifNil: [ ^ self ].
+	secString := UIManager default
+		request: 'Profile for how many seconds?'
+		initialAnswer: '4'.
+	secString ifNil: [ secString := String new ].
 	secs := secString asNumber asInteger.
-	(secs isNil
-			or: [secs isZero])
-		ifTrue: [^ self].
-	[ Smalltalk tools timeProfiler spyOnProcess: self selectedProcess forMilliseconds: secs * 1000 ] forkAt: self selectedProcess priority + 1.
+	(secs isNil or: [ secs isZero ])
+		ifTrue: [ ^ self ].
+	[ Smalltalk tools timeProfiler
+		spyOnProcess: self selectedProcess
+		forMilliseconds: secs * 1000 ]
+		forkAt: self selectedProcess priority + 1
 ]
 
 { #category : #'stack list' }
 SpecProcessBrowser >> moreStack [
+	self selectedProcess ifNil: [ ^ self ].
 	self updateStackList: 2000
 ]
 
@@ -725,20 +743,18 @@ SpecProcessBrowser >> registerProcessListShortcuts: aWidget [
 SpecProcessBrowser >> registerStackListShortcuts: aWidget [
 	aWidget
 		bindKeyCombination: $c meta
-		toAction: [ self selectedContext
-				ifNotNil: [ self inspectContext ] ].
+		toAction: [ self inspectContext  ].
 	aWidget
 		bindKeyCombination: $I meta
-		toAction: [ self selectedContext
-				ifNotNil: [ self inspectReceiver ] ].
+		toAction: [  self inspectReceiver  ].
 	aWidget
 		bindKeyCombination: $b meta
-		toAction: [ self selectedContext
-				ifNotNil: [ self browseContext ] ]
+		toAction: [ self browseContext ]
 ]
 
 { #category : #'process actions' }
 SpecProcessBrowser >> resumeProcess [
+	self selectedProcess ifNil: [ ^ self ].
 	self class resumeProcess: self selectedProcess.
 	self updateProcessList
 ]
@@ -803,8 +819,9 @@ SpecProcessBrowser >> shoutAboutToStyle: aPluggableShoutMorphOrView [
 
 { #category : #'process actions' }
 SpecProcessBrowser >> signalSemaphore [
-	(self selectedProcess suspendingList isKindOf: Semaphore) ifFalse: [ ^ self ].
-	
+	self selectedProcess ifNil: [ ^ self ].
+	(self selectedProcess suspendingList isKindOf: Semaphore)
+		ifFalse: [ ^ self ].
 	[ self selectedProcess suspendingList signal ] fork.
 	(Delay forMilliseconds: 300) wait.
 	"Hate to make the UI wait, but it's convenient..."
@@ -883,12 +900,13 @@ SpecProcessBrowser >> stopCPUWatcher [
 { #category : #'process actions' }
 SpecProcessBrowser >> suspendProcess [
 	| nameAndRules |
-	self selectedProcess isSuspended ifTrue: [^ self].
-	
+		self selectedProcess ifNil: [ ^ self ].
+	self selectedProcess isSuspended
+		ifTrue: [ ^ self ].
 	nameAndRules := self nameAndRulesForSelectedProcess.
 	nameAndRules second
-		ifFalse: [self inform: 'Nope, won''t suspend ' , nameAndRules first.
-			^ self].
+		ifFalse: [ self inform: 'Nope, won''t suspend ' , nameAndRules first.
+			^ self ].
 	self class suspendProcess: self selectedProcess.
 	self updateProcessList
 ]
@@ -896,11 +914,12 @@ SpecProcessBrowser >> suspendProcess [
 { #category : #'process actions' }
 SpecProcessBrowser >> terminateProcess [
 	| nameAndRules |
+		self selectedProcess ifNil: [ ^ self ].
 	nameAndRules := self nameAndRulesForSelectedProcess.
 	nameAndRules first = 'my auto-update process'
-		ifTrue:
-			[ self toggleAutoUpdate.
-			^ self ] .nameAndRules second
+		ifTrue: [ self toggleAutoUpdate.
+			^ self ].
+	nameAndRules second
 		ifFalse: [ self inform: 'Nope, won''t kill ' , nameAndRules first.
 			^ self ].
 	self class terminateProcess: self selectedProcess.
